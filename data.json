@@ -1,8 +1,11 @@
 {
  "name": "My Gaming Tracker",
- "updated_ts": 1784553968,
+ "updated_ts": 1784554452,
  "window_days": 90,
- "now_playing": null,
+ "now_playing": {
+  "game": "Football Manager 26",
+  "since_ts": 1784554452
+ },
  "totals": {
   "today_h": 0.0,
   "week_h": 0.0,
