@@ -107,6 +107,7 @@ function dur(mins){ mins=Math.round(mins); if(mins<60) return mins+'m';
 const DOW=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 function render(d){
   $('name').textContent = d.name || 'My Gaming Tracker';
+  document.title = d.name || 'My Gaming Tracker';
   $('updated').textContent = 'updated ' + fmtAgo(d.updated_ts);
   NP = d.now_playing;
   if(NP){ $('np').style.display='flex'; $('np-game').textContent = NP.game; }
