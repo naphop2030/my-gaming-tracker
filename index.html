@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>My Gaming Tracker</title>
+<link rel="icon" type="image/png" href="favicon.png">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --bg:#0b0d14; --bg2:#0e1119; --panel:rgba(22,25,35,.72); --border:rgba(255,255,255,.08);
+    --text:#eceef5; --muted:#8b91a7; --faint:#5b6076; --accent:#7c6cff; --accent2:#22d3ee;
+    --good:#34d399; --radius:18px;
+  }
+  *{box-sizing:border-box} html,body{margin:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+       color:var(--text); background:var(--bg); min-height:100vh; position:relative}
+  body::before{content:"";position:fixed;inset:0;z-index:-1;
+    background:radial-gradient(680px 420px at 12% -8%,rgba(124,108,255,.28),transparent 70%),
+               radial-gradient(640px 460px at 100% 0%,rgba(34,211,238,.16),transparent 70%),
+               linear-gradient(180deg,var(--bg),var(--bg2))}
+  .wrap{max-width:820px;margin:0 auto;padding:30px 20px 48px}
+  header{display:flex;align-items:center;gap:14px;margin-bottom:22px;flex-wrap:wrap}
+  .logo{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;font-size:24px;
+        background:linear-gradient(135deg,var(--accent),var(--accent2));
+        box-shadow:0 8px 22px rgba(124,108,255,.5)}
+  h1{margin:0;font-size:22px;font-weight:750;letter-spacing:-.3px}
+  .status{margin-left:auto;display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);
+          padding:7px 12px;border-radius:999px;background:var(--panel);border:1px solid var(--border)}
+  .status .dot{width:7px;height:7px;border-radius:50%;background:var(--good);
+               box-shadow:0 0 0 3px rgba(52,211,153,.25);animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .np{display:none;align-items:center;gap:14px;padding:18px 20px;margin-bottom:18px;border-radius:var(--radius);
+      background:linear-gradient(120deg,rgba(124,108,255,.22),rgba(34,211,238,.14));
+      border:1px solid rgba(124,108,255,.35)}
+  .np .ico{font-size:26px;animation:bob 1.6s ease-in-out infinite}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+  .np .lbl{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;font-weight:600}
+  .np .g{font-size:20px;font-weight:750;margin-top:2px}
+  .np .timer{margin-left:auto;font-size:22px;font-weight:750;font-variant-numeric:tabular-nums;
+             color:#fff;text-shadow:0 0 18px rgba(124,108,255,.6)}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+  @media(max-width:560px){.kpis{grid-template-columns:repeat(2,1fr)}}
+  .kpi{padding:16px 16px;border-radius:var(--radius);background:var(--panel);border:1px solid var(--border)}
+  .kpi .n{font-size:26px;font-weight:750;letter-spacing:-1px;
+          background:linear-gradient(135deg,#fff,#b9b3ff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .kpi .n small{font-size:14px;color:var(--muted);-webkit-text-fill-color:var(--muted);margin-left:1px}
+  .kpi .l{color:var(--muted);font-size:11px;margin-top:5px;text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+  .card{padding:20px 22px;border-radius:var(--radius);background:var(--panel);border:1px solid var(--border);margin-bottom:16px}
+  .card h2{margin:0 0 16px;font-size:14px;font-weight:650;display:flex;align-items:center;gap:8px}
+  .row{display:flex;align-items:center;gap:12px;margin-bottom:11px;font-size:13.5px}
+  .row:last-child{margin-bottom:0}
+  .row .rn{width:150px;flex:none;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row .track{flex:1;height:9px;background:rgba(255,255,255,.07);border-radius:999px;overflow:hidden}
+  .row .track > i{display:block;height:100%;border-radius:999px;
+                  background:linear-gradient(90deg,var(--accent),var(--accent2))}
+  .row .rv{width:70px;flex:none;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+  .dow{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;align-items:end;height:120px}
+  .dow .bar{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:6px}
+  .dow .bar > i{width:70%;border-radius:6px 6px 0 0;background:linear-gradient(180deg,var(--accent2),var(--accent));min-height:3px}
+  .dow .bar span{font-size:11px;color:var(--muted)}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{padding:9px 13px;border-radius:12px;font-size:13px;background:rgba(255,255,255,.05);border:1px solid var(--border)}
+  .recent{display:flex;flex-direction:column;gap:2px}
+  .recent .item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:11px;font-size:13.5px}
+  .recent .item:hover{background:rgba(124,108,255,.08)}
+  .recent .item .rg{font-weight:600}
+  .recent .item .meta{margin-left:auto;color:var(--muted);font-size:12.5px;font-variant-numeric:tabular-nums}
+  .empty{color:var(--muted);font-size:14px;text-align:center;padding:26px 0}
+  footer{text-align:center;color:var(--faint);font-size:12px;padding:22px 0 4px}
+</style></head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">🎮</div>
+    <h1 id="name">My Gaming Tracker</h1>
+    <span class="status"><span class="dot"></span> <span id="updated">loading…</span></span>
+  </header>
+
+  <div class="np" id="np">
+    <div class="ico">🎮</div>
+    <div><div class="lbl">Now playing</div><div class="g" id="np-game">—</div></div>
+    <div class="timer" id="np-timer">0m</div>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi"><div class="n" id="t-today">0<small>h</small></div><div class="l">Today</div></div>
+    <div class="kpi"><div class="n" id="t-week">0<small>h</small></div><div class="l">This week</div></div>
+    <div class="kpi"><div class="n" id="t-all">0<small>h</small></div><div class="l">Last 90 days</div></div>
+    <div class="kpi"><div class="n" id="t-sessions">0</div><div class="l">Sessions</div></div>
+  </div>
+
+  <div class="card"><h2>🕹️ Top games</h2><div id="top"><div class="empty">No games yet</div></div></div>
+  <div class="card"><h2>📅 When I play</h2><div class="dow" id="dow"></div></div>
+  <div class="card"><h2>✨ Highlights</h2><div class="chips" id="highlights"></div></div>
+  <div class="card"><h2>🕘 Recent sessions</h2><div class="recent" id="recent"><div class="empty">Nothing yet</div></div></div>
+
+  <footer>Powered by GameTracker · auto-updates every 45s</footer>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+let NP = null;
+function fmtAgo(ts){ let s=Math.max(0,Math.floor(Date.now()/1000-ts));
+  if(s<60)return s+'s ago'; let m=Math.floor(s/60); if(m<60)return m+'m ago';
+  let h=Math.floor(m/60); if(h<24)return h+'h ago'; return Math.floor(h/24)+'d ago'; }
+function fmtDur(sec){ sec=Math.max(0,Math.floor(sec)); let m=Math.floor(sec/60), h=Math.floor(m/60);
+  return h>0 ? h+'h '+(m%60)+'m' : m+'m '+(sec%60)+'s'; }
+function dur(mins){ mins=Math.round(mins); if(mins<60) return mins+'m';
+  let h=Math.floor(mins/60), m=mins%60; return m ? h+'h '+m+'m' : h+'h'; }
+const DOW=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+function render(d){
+  $('name').textContent = d.name || 'My Gaming Tracker';
+  $('updated').textContent = 'updated ' + fmtAgo(d.updated_ts);
+  NP = d.now_playing;
+  if(NP){ $('np').style.display='flex'; $('np-game').textContent = NP.game; }
+  else { $('np').style.display='none'; }
+  $('t-today').textContent = dur(d.totals.today_h*60);
+  $('t-week').textContent = dur(d.totals.week_h*60);
+  $('t-all').textContent = dur(d.totals.all_h*60);
+  $('t-sessions').textContent = d.totals.sessions;
+  const mx = Math.max(1, ...d.top_games.map(g=>g.hours));
+  $('top').innerHTML = d.top_games.length ? d.top_games.map(g =>
+    `<div class="row"><div class="rn">${esc(g.game)}</div><div class="track"><i style="width:${Math.round(g.hours/mx*100)}%"></i></div><div class="rv">${dur(g.hours*60)}</div></div>`
+  ).join('') : '<div class="empty">No games yet</div>';
+  const dmx = Math.max(1, ...d.by_dow);
+  $('dow').innerHTML = d.by_dow.map((v,i) =>
+    `<div class="bar"><i style="height:${Math.round(v/dmx*100)}%" title="${dur(v*60)}"></i><span>${DOW[i]}</span></div>`
+  ).join('');
+  $('highlights').innerHTML = (d.highlights||[]).map(h=>`<div class="chip">${esc(h)}</div>`).join('');
+  $('recent').innerHTML = d.recent.length ? d.recent.map(r =>
+    `<div class="item"><span class="rg">${esc(r.game)}</span><span class="meta">${dur(r.mins)} · ${fmtAgo(r.ago_ts)}</span></div>`
+  ).join('') : '<div class="empty">Nothing yet</div>';
+}
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+async function load(){
+  try{ const r = await fetch('data.json?t='+Date.now(),{cache:'no-store'});
+       render(await r.json()); }
+  catch(e){ $('updated').textContent='waiting for data…'; }
+}
+function tick(){ if(NP) $('np-timer').textContent = fmtDur(Date.now()/1000 - NP.since_ts); }
+setInterval(tick,1000); setInterval(load,45000); load();
+</script>
+</body></html>
