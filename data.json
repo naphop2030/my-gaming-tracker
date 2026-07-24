@@ -1,28 +1,30 @@
 {
  "name": "My Gaming Tracker",
- "updated_ts": 1784894604,
+ "updated_ts": 1784896182,
  "window_days": 90,
- "now_playing": {
-  "game": "Valorant",
-  "since_ts": 1784894604
- },
+ "now_playing": null,
  "totals": {
-  "today_h": 0.0,
-  "week_h": 0.1,
-  "all_h": 0.1,
-  "sessions": 2
+  "today_h": 0.4,
+  "week_h": 0.5,
+  "all_h": 0.5,
+  "sessions": 3
  },
  "top_games": [
   {
-   "game": "Football Manager 26",
-   "hours": 0.1
+   "game": "Valorant",
+   "hours": 0.5
   },
   {
-   "game": "Valorant",
-   "hours": 0.0
+   "game": "Football Manager 26",
+   "hours": 0.1
   }
  ],
  "recent": [
+  {
+   "game": "Valorant",
+   "mins": 26,
+   "ago_ts": 1784894604
+  },
   {
    "game": "Football Manager 26",
    "mins": 4,
@@ -39,13 +41,13 @@
   0.0,
   0.0,
   0.0,
-  0.0,
+  0.4,
   0.0,
   0.0
  ],
  "highlights": [
-  "🎮 Most-played: Football Manager 26 (4m)",
-  "📅 Busiest day: Monday",
-  "⏰ Peak time: around 23:00"
+  "🎮 Most-played: Valorant (28m)",
+  "📅 Busiest day: Friday",
+  "⏰ Peak time: around 22:00"
  ]
 }
