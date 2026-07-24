@@ -1,8 +1,11 @@
 {
  "name": "My Gaming Tracker",
- "updated_ts": 1784893810,
+ "updated_ts": 1784894604,
  "window_days": 90,
- "now_playing": null,
+ "now_playing": {
+  "game": "Valorant",
+  "since_ts": 1784894604
+ },
  "totals": {
   "today_h": 0.0,
   "week_h": 0.1,
