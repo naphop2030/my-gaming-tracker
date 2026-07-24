@@ -92,7 +92,7 @@
   <div class="card"><h2>✨ Highlights</h2><div class="chips" id="highlights"></div></div>
   <div class="card"><h2>🕘 Recent sessions</h2><div class="recent" id="recent"><div class="empty">Nothing yet</div></div></div>
 
-  <footer>Powered by GameTracker · auto-updates every 45s</footer>
+  <footer>Powered by GameTracker · auto-updates every 20s</footer>
 </div>
 <script>
 const $ = id => document.getElementById(id);
@@ -136,6 +136,6 @@ async function load(){
   catch(e){ $('updated').textContent='waiting for data…'; }
 }
 function tick(){ if(NP) $('np-timer').textContent = fmtDur(Date.now()/1000 - NP.since_ts); }
-setInterval(tick,1000); setInterval(load,45000); load();
+setInterval(tick,1000); setInterval(load,20000); load();
 </script>
 </body></html>
