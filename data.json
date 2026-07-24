@@ -1,21 +1,18 @@
 {
  "name": "My Gaming Tracker",
- "updated_ts": 1784896220,
+ "updated_ts": 1784903111,
  "window_days": 90,
- "now_playing": {
-  "game": "Valorant",
-  "since_ts": 1784896220
- },
+ "now_playing": null,
  "totals": {
-  "today_h": 0.4,
-  "week_h": 0.5,
-  "all_h": 0.5,
-  "sessions": 3
+  "today_h": 0.0,
+  "week_h": 2.5,
+  "all_h": 2.5,
+  "sessions": 4
  },
  "top_games": [
   {
    "game": "Valorant",
-   "hours": 0.5
+   "hours": 2.4
   },
   {
    "game": "Football Manager 26",
@@ -23,6 +20,11 @@
   }
  ],
  "recent": [
+  {
+   "game": "Valorant",
+   "mins": 115,
+   "ago_ts": 1784896220
+  },
   {
    "game": "Valorant",
    "mins": 26,
@@ -44,13 +46,14 @@
   0.0,
   0.0,
   0.0,
-  0.4,
+  2.4,
   0.0,
   0.0
  ],
  "highlights": [
-  "🎮 Most-played: Valorant (28m)",
+  "🎮 Most-played: Valorant (2h 23m)",
   "📅 Busiest day: Friday",
-  "⏰ Peak time: around 22:00"
+  "⏰ Peak time: around 22:00",
+  "🏆 Longest session: 1h 55m of Valorant"
  ]
 }
