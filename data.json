@@ -1,11 +1,11 @@
 {
  "name": "My Gaming Tracker",
- "updated_ts": 1784903111,
+ "updated_ts": 1785499792,
  "window_days": 90,
  "now_playing": null,
  "totals": {
   "today_h": 0.0,
-  "week_h": 2.5,
+  "week_h": 0.0,
   "all_h": 2.5,
   "sessions": 4
  },
