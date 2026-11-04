@@ -1,0 +1,17 @@
+{
+  "name": "tabletop-dnd",
+  "version": "1.0.0",
+  "description": "A small self-hosted virtual tabletop for playing D&D with friends: shared map, tokens, dice, character sheets and initiative.",
+  "main": "server.js",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

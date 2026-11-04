@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tabletop</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ============ Lobby ============ -->
+<main id="lobby" class="lobby">
+  <div class="lobby-card">
+    <div class="brand"><span class="d20">⬢</span> Tabletop</div>
+    <p class="sub">A shared map, dice and character sheets for your D&amp;D group. Hosted by you.</p>
+
+    <label class="field">Your name
+      <input id="lobbyName" maxlength="30" placeholder="e.g. Mira the Bold" autocomplete="nickname">
+    </label>
+
+    <div class="lobby-split">
+      <section>
+        <h2>Join a game</h2>
+        <label class="field">Game code
+          <input id="lobbyCode" maxlength="6" placeholder="ABC123" autocapitalize="characters" spellcheck="false">
+        </label>
+        <button id="joinBtn" class="btn primary">Join game</button>
+      </section>
+      <div class="or">or</div>
+      <section>
+        <h2>Start a new game</h2>
+        <p class="hint">You'll be the Dungeon Master. You get a code to share with your players.</p>
+        <button id="createBtn" class="btn">Create game as DM</button>
+      </section>
+    </div>
+    <p id="lobbyError" class="error" role="alert"></p>
+  </div>
+</main>
+
+<!-- ============ Table ============ -->
+<div id="table" class="table" hidden>
+  <header class="topbar">
+    <div class="brand small"><span class="d20">⬢</span> Tabletop</div>
+    <button id="codeBtn" class="code" title="Copy invite link">Code <b id="roomCode"></b> <span class="copy">Copy invite</span></button>
+    <div id="players" class="players"></div>
+    <span id="conn" class="conn"></span>
+    <button id="renameBtn" class="btn ghost small" title="Change your name">✎ <span id="myName"></span></button>
+    <button id="leaveBtn" class="btn ghost small">Leave</button>
+  </header>
+
+  <div class="stage">
+    <div class="map-wrap">
+      <canvas id="map"></canvas>
+      <div class="zoom">
+        <button data-zoom="in" title="Zoom in">+</button>
+        <button data-zoom="out" title="Zoom out">−</button>
+        <button data-zoom="fit" title="Fit map">⤢</button>
+      </div>
+      <div class="map-hint">Drag your token to move · drag empty space to pan · scroll to zoom · double-click to ping</div>
+    </div>
+
+    <aside class="side">
+      <nav class="tabs" role="tablist">
+        <button role="tab" data-tab="chat" class="active">Chat &amp; dice</button>
+        <button role="tab" data-tab="sheet">Character</button>
+        <button role="tab" data-tab="init">Initiative</button>
+        <button role="tab" data-tab="tokens">Map</button>
+      </nav>
+
+      <!-- Chat & dice -->
+      <section class="panel" data-panel="chat">
+        <div id="chatLog" class="chat-log" aria-live="polite"></div>
+        <div class="dice-bar">
+          <button data-die="1d4">d4</button><button data-die="1d6">d6</button><button data-die="1d8">d8</button>
+          <button data-die="1d10">d10</button><button data-die="1d12">d12</button><button data-die="1d20">d20</button>
+          <button data-die="1d100">d100</button><button data-die="adv" title="Advantage: 2d20, keep highest">Adv</button>
+          <button data-die="dis" title="Disadvantage: 2d20, keep lowest">Dis</button>
+        </div>
+        <form id="chatForm" class="chat-form">
+          <input id="chatInput" maxlength="1000" placeholder="Say something, or /r 1d20+5 Stealth" autocomplete="off">
+          <button class="btn primary">Send</button>
+        </form>
+        <label class="check"><input type="checkbox" id="secretRoll"> Secret rolls (only you and the DM see them)</label>
+      </section>
+
+      <!-- Character sheet -->
+      <section class="panel" data-panel="sheet" hidden>
+        <div class="row">
+          <label class="field grow">Viewing
+            <select id="sheetWho"></select>
+          </label>
+        </div>
+        <p id="sheetReadonly" class="hint" hidden>You're viewing someone else's sheet. Only they (or the DM) can edit it.</p>
+        <form id="sheetForm" class="sheet" autocomplete="off">
+          <div class="grid2">
+            <label class="field">Character name<input name="name" maxlength="60"></label>
+            <label class="field">Class<input name="cls" maxlength="60" placeholder="Fighter"></label>
+            <label class="field">Race / species<input name="race" maxlength="40"></label>
+            <label class="field">Background<input name="background" maxlength="60"></label>
+          </div>
+          <div class="stats">
+            <label class="field">Level<input name="level" type="number" min="1" max="30"></label>
+            <label class="field">AC<input name="ac" type="number" min="0" max="50"></label>
+            <label class="field">Speed<input name="speed" type="number" min="0" max="500"></label>
+            <label class="field">Prof.<input name="prof" type="number" min="0" max="10"></label>
+          </div>
+          <div class="stats">
+            <label class="field">HP<input name="hp" type="number"></label>
+            <label class="field">Max HP<input name="maxHp" type="number" min="0"></label>
+            <label class="field">Temp HP<input name="tempHp" type="number" min="0"></label>
+            <label class="field">Init. bonus<input name="initBonus" type="number" min="-20" max="20"></label>
+          </div>
+          <div class="hp-quick" data-edit-only>
+            <input id="hpAmount" type="number" min="1" placeholder="Amount" aria-label="HP amount">
+            <button type="button" class="btn small" data-hp="-1">Damage</button>
+            <button type="button" class="btn small" data-hp="1">Heal</button>
+          </div>
+          <div id="abilities" class="abilities"></div>
+          <label class="field">Inventory<textarea name="inventory" rows="4" maxlength="5000"></textarea></label>
+          <label class="field">Notes, spells &amp; features<textarea name="notes" rows="6" maxlength="5000"></textarea></label>
+        </form>
+      </section>
+
+      <!-- Initiative -->
+      <section class="panel" data-panel="init" hidden>
+        <div class="init-head">
+          <h3>Round <span id="round">1</span></h3>
+          <button id="rollInit" class="btn primary small">Roll my initiative</button>
+        </div>
+        <ol id="initList" class="init-list"></ol>
+        <p id="initEmpty" class="hint">No one is in combat yet.</p>
+        <div data-dm-only class="dm-box">
+          <div class="row">
+            <button class="btn small" id="initPrev">◀ Prev</button>
+            <button class="btn primary small grow" id="initNext">Next turn ▶</button>
+            <button class="btn ghost small" id="initClear">End combat</button>
+          </div>
+          <form id="initAdd" class="row wrap">
+            <input name="name" maxlength="40" placeholder="Goblin 1" class="grow">
+            <input name="value" type="number" placeholder="Init" class="narrow" title="Leave blank to roll">
+            <input name="bonus" type="number" placeholder="+mod" class="narrow" title="Bonus when rolling">
+            <button class="btn small">Add</button>
+          </form>
+          <p class="hint">Leave Init blank to roll d20 + mod in secret.</p>
+        </div>
+      </section>
+
+      <!-- Map & tokens -->
+      <section class="panel" data-panel="tokens" hidden>
+        <div id="tokenEditor" class="box" hidden>
+          <h3>Selected token</h3>
+          <div class="grid2">
+            <label class="field">Label<input id="teLabel" maxlength="40"></label>
+            <label class="field">Color<input id="teColor" type="color"></label>
+            <label class="field">HP<input id="teHp" type="number"></label>
+            <label class="field">Max HP<input id="teMaxHp" type="number" min="0"></label>
+            <label class="field" data-dm-only>Size (squares)<input id="teSize" type="number" min="1" max="6"></label>
+            <label class="field" data-dm-only>Owner<select id="teOwner"></select></label>
+          </div>
+          <label class="check" data-dm-only><input type="checkbox" id="teHidden"> Hidden from players</label>
+          <button id="teDelete" class="btn danger small">Remove token</button>
+        </div>
+        <p id="tokenReadonly" class="hint" hidden>Select one of your own tokens to edit it.</p>
+
+        <form id="tokenAdd" class="box">
+          <h3>Add a token</h3>
+          <div class="grid2">
+            <label class="field">Label<input name="label" maxlength="40" placeholder="Name"></label>
+            <label class="field">Color<input name="color" type="color" value="#c0392b"></label>
+            <label class="field" data-dm-only>Size<input name="size" type="number" min="1" max="6" value="1"></label>
+            <label class="field" data-dm-only>Owner<select name="owner" id="taOwner"></select></label>
+          </div>
+          <label class="check" data-dm-only><input type="checkbox" name="hidden"> Hidden from players</label>
+          <button class="btn primary small">Place in the middle of the view</button>
+        </form>
+
+        <div data-dm-only class="box">
+          <h3>Map (DM)</h3>
+          <label class="field">Battle map image
+            <input id="mapFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif">
+          </label>
+          <form id="mapForm" class="row wrap">
+            <label class="field narrow2">Columns<input name="cols" type="number" min="5" max="200"></label>
+            <label class="field narrow2">Rows<input name="rows" type="number" min="5" max="200"></label>
+            <label class="check"><input type="checkbox" name="grid"> Grid</label>
+            <button class="btn small">Apply</button>
+          </form>
+          <p class="hint">Set columns and rows to match the squares drawn on your map image.</p>
+          <button id="clearMap" class="btn ghost small">Remove map image</button>
+          <hr>
+          <p class="hint">Want to run the game from another device? Open this DM link there. Don't share it with players.</p>
+          <button id="dmLink" class="btn ghost small">Copy DM link</button>
+        </div>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<div id="toast" class="toast" role="status"></div>
+<script src="app.js"></script>
+</body>
+</html>
