@@ -9,6 +9,7 @@ const os = require('os');
 const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
 const { roll } = require('./dice');
+const adventure = require('./adventure');
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -81,9 +82,11 @@ function newCode() {
   return code;
 }
 
-function newRoom() {
+function newRoom(mode = 'tabletop', adventureId = null) {
   return {
     code: newCode(),
+    mode,
+    adventure: mode === 'adventure' ? adventure.create(adventureId) : null,
     dmKey: rid(18),
     createdAt: Date.now(),
     players: {}, // secret browser id -> { id (public), name, isDM }
@@ -144,6 +147,8 @@ function viewFor(room, client) {
     chat: dm ? room.chat : room.chat.filter((m) => !m.private || m.from === client.publicId),
     sheets: room.sheets,
     initiative: room.initiative,
+    mode: room.mode || 'tabletop',
+    adventure: room.adventure ? adventure.view(room, client.publicId) : null,
   };
 }
 
@@ -184,6 +189,9 @@ function handle(ws, msg) {
   const ownsOrDM = (ownerId) => dm || (ownerId && ownerId === me.id);
 
   try {
+    if (room.adventure && /^(init|token|map):/.test(msg.t)) {
+      return fail('The adventure handles that for you.');
+    }
     switch (msg.t) {
       case 'chat': {
         const text = str(msg.text, 1000).trim();
@@ -298,11 +306,15 @@ function handle(ws, msg) {
           if (!playerByPublicId(room, msg.playerId)) return;
           targetId = msg.playerId;
         }
+        if (room.adventure && room.adventure.party[targetId]) {
+          return fail('In an adventure, the game keeps your hero\'s sheet up to date for you.');
+        }
         room.sheets[targetId] = sanitizeSheet(msg.sheet);
         break;
       }
 
       // ----- initiative -----
+      // (In adventure games the engine runs initiative itself.)
       case 'init:roll': {
         const sheet = room.sheets[me.id] || sanitizeSheet({});
         const bonus = mod(sheet.dex) + sheet.initBonus;
@@ -379,9 +391,16 @@ function handle(ws, msg) {
         break;
 
       default:
+        if (typeof msg.t === 'string' && msg.t.startsWith('adv:')) {
+          if (!room.adventure) return fail('This game has no adventure running.');
+          adventure.handle(room, me, dm, msg);
+          adventure.syncSheets(room);
+          break;
+        }
         return;
     }
   } catch (e) {
+    if (!(e instanceof adventure.GameError)) console.error(e);
     return fail(e.message);
   }
   broadcast(room);
@@ -400,7 +419,7 @@ function join(ws, msg) {
   if (!p) {
     if (Object.keys(room.players).length >= MAX_PLAYERS) return send(ws, { t: 'fatal', text: 'This game is full.' });
     p = room.players[pid] = { id: rid(6), name, isDM };
-    addChat(room, { kind: 'system', text: `${name} joined the game${isDM ? ' as DM' : ''}.` });
+    addChat(room, { kind: 'system', text: `${name} joined the game${isDM ? (room.adventure ? ' as host' : ' as DM') : ''}.` });
   } else {
     p.name = name;
     p.isDM = isDM;
@@ -469,11 +488,17 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'POST' && p === '/api/rooms') {
       if (rooms.size >= MAX_ROOMS) return json(res, 503, { error: 'This server has too many games. Delete data/rooms.json to start fresh.' });
-      const room = newRoom();
+      let opts = {};
+      try { opts = JSON.parse((await readBody(req, 4096)).toString() || '{}'); } catch { opts = {}; }
+      const mode = opts.mode === 'adventure' ? 'adventure' : 'tabletop';
+      if (mode === 'adventure' && !adventure.exists(opts.adventure)) return json(res, 400, { error: 'Unknown adventure.' });
+      const room = newRoom(mode, opts.adventure);
       rooms.set(room.code, room);
       saveNow();
       return json(res, 200, { code: room.code, dmKey: room.dmKey });
     }
+
+    if (req.method === 'GET' && p === '/api/adventures') return json(res, 200, adventure.list());
 
     let m = p.match(/^\/api\/rooms\/([A-Z0-9]{6})$/);
     if (m && req.method === 'GET') {

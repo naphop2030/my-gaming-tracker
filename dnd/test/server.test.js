@@ -24,8 +24,10 @@ test.before(async () => {
     proc.on('exit', () => reject(new Error('server exited')));
   });
 });
-test.after(() => {
+test.after(async () => {
+  const exited = new Promise((resolve) => proc.on('exit', resolve));
   proc.kill();
+  await exited;
   fs.rmSync(dataDir, { recursive: true, force: true });
 });
 
@@ -48,6 +50,9 @@ function client(room, name, dmKey) {
   return c;
 }
 const state = (c) => c.next((m) => m.t === 'state').then((m) => m.state);
+// Resolves with the first state (current or upcoming) that matches.
+const until = (c, pred) => (c.state && pred(c.state) ? Promise.resolve(c.state)
+  : c.next((m) => m.t === 'state' && pred(m.state)).then((m) => m.state));
 
 test('a short session', async () => {
   const res = await fetch(`${BASE}/api/rooms`, { method: 'POST' });
@@ -70,7 +75,7 @@ test('a short session', async () => {
   dm.send({ t: 'token:add', label: 'Goblin', hidden: true, x: 3, y: 3 });
   let s = await state(pl);
   assert.strictEqual(s.tokens.length, 0);
-  const goblin = dm.state.tokens.find((t) => t.label === 'Goblin');
+  const goblin = (await until(dm, (st) => st.tokens.some((t) => t.label === 'Goblin'))).tokens.find((t) => t.label === 'Goblin');
   assert.ok(goblin);
 
   // Player can't move the goblin, but can add and move their own token.
@@ -90,7 +95,7 @@ test('a short session', async () => {
   dm.send({ t: 'chat', text: '/gr 1d20+2 Perception' });
   s = await state(pl);
   assert.ok(!s.chat.some((m) => m.kind === 'roll'));
-  const secret = dm.state.chat.find((m) => m.kind === 'roll');
+  const secret = (await until(dm, (st) => st.chat.some((m) => m.kind === 'roll'))).chat.find((m) => m.kind === 'roll');
   assert.strictEqual(secret.label, 'Perception');
   assert.strictEqual(secret.private, true);
 
@@ -109,8 +114,7 @@ test('a short session', async () => {
   assert.ok(entry.value >= 4 && entry.value <= 23);
   dm.send({ t: 'init:add', name: 'Goblin', value: 99 });
   dm.send({ t: 'init:next' });
-  await state(dm);
-  s = await state(dm);
+  s = (await dm.next((m) => m.t === 'state' && m.state.initiative.current)).state;
   assert.strictEqual(s.initiative.list[0].name, 'Goblin');
   assert.strictEqual(s.initiative.current, s.initiative.list[0].id);
 

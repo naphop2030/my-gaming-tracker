@@ -30,8 +30,9 @@
       <div class="or">or</div>
       <section>
         <h2>Start a new game</h2>
-        <p class="hint">You'll be the Dungeon Master. You get a code to share with your players.</p>
-        <button id="createBtn" class="btn">Create game as DM</button>
+        <div id="advList" class="adv-list"></div>
+        <button id="createBtn" class="btn">Free tabletop (you're the DM)</button>
+        <p class="hint"><b>Adventure:</b> the game tells the story and runs the monsters, so everyone plays a hero.<br><b>Tabletop:</b> one of you is the DM, with a shared map, tokens and dice.</p>
       </section>
     </div>
     <p id="lobbyError" class="error" role="alert"></p>
@@ -58,6 +59,34 @@
   <div class="stage">
     <div class="map-wrap">
       <canvas id="map"></canvas>
+      <section id="adventure" class="adv" hidden>
+        <header class="adv-head">
+          <div class="adv-where">
+            <div class="adv-region"><span id="advTitle"></span> · <span id="advRegion"></span></div>
+            <h2 id="advPlace"></h2>
+          </div>
+          <div class="adv-purse" title="Party gold and healing potions">
+            <span class="coin">●</span> <b id="advGold">0</b> gold · <span id="advPotions">0 potions</span>
+          </div>
+          <nav class="adv-tabs">
+            <button data-adv-tab="story" class="active">Story</button>
+            <button data-adv-tab="world">World map</button>
+            <button data-adv-tab="journal">Journal</button>
+          </nav>
+        </header>
+        <div class="adv-body">
+          <div data-adv-view="story" class="adv-story">
+            <div id="advLog" class="adv-log" aria-live="polite"></div>
+            <div id="advNow" class="adv-now"></div>
+          </div>
+          <div data-adv-view="world" class="adv-world" hidden>
+            <svg id="advMap" viewBox="0 0 100 70" role="img" aria-label="World map"></svg>
+            <p class="hint">Click a glowing place next to you to travel there. Dashed roads are locked for now.</p>
+          </div>
+          <div data-adv-view="journal" class="adv-journal" hidden></div>
+        </div>
+        <div id="advParty" class="adv-party"></div>
+      </section>
       <div class="zoom">
         <button data-zoom="in" title="Zoom in">+</button>
         <button data-zoom="out" title="Zoom out">−</button>
@@ -71,7 +100,7 @@
         <button role="tab" data-tab="chat" class="active">Chat &amp; dice</button>
         <button role="tab" data-tab="sheet">Character</button>
         <button role="tab" data-tab="init">Initiative</button>
-        <button role="tab" data-tab="tokens">Map</button>
+        <button role="tab" data-tab="tokens" data-tabletop-only>Map</button>
       </nav>
 
       <!-- Chat & dice -->
@@ -132,11 +161,11 @@
       <section class="panel" data-panel="init" hidden>
         <div class="init-head">
           <h3>Round <span id="round">1</span></h3>
-          <button id="rollInit" class="btn primary small">Roll my initiative</button>
+          <button id="rollInit" class="btn primary small" data-tabletop-only>Roll my initiative</button>
         </div>
         <ol id="initList" class="init-list"></ol>
         <p id="initEmpty" class="hint">No one is in combat yet.</p>
-        <div data-dm-only class="dm-box">
+        <div data-dm-only data-tabletop-only class="dm-box">
           <div class="row">
             <button class="btn small" id="initPrev">◀ Prev</button>
             <button class="btn primary small grow" id="initNext">Next turn ▶</button>
@@ -205,5 +234,6 @@
 
 <div id="toast" class="toast" role="status"></div>
 <script src="app.js"></script>
+<script src="adventure.js"></script>
 </body>
 </html>

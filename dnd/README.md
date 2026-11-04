@@ -1,17 +1,38 @@
-# Tabletop — a self-hosted D&D table
+# Tabletop: a self-hosted D&D game
 
-A small virtual tabletop for playing D&D with your friends. One person runs the server and everyone else joins from a web browser. Nothing needs to be installed on the players' side, and there are no accounts or subscriptions.
+Play D&D with your friends on a server you run yourselves. One person starts the server and everyone else joins from a web browser. Nothing needs to be installed on the players' side, and there are no accounts or subscriptions.
 
-**What you get**
+There are two ways to play:
 
-- **Shared battle map**: upload any map image, line up the grid and zoom/pan. Moving a token shows the distance in feet.
-- **Tokens**: players move only their own tokens. The DM can move everything, hide monsters from players, resize tokens and assign them to players.
-- **Dice and chat**: dice buttons or commands (`/r 1d20+5 Stealth`). Advantage and disadvantage, keep/drop (`4d6dl1`), and secret rolls that only the DM sees. Natural 20s and 1s are highlighted. All rolls happen on the server, so nobody can fake them.
-- **Character sheets**: ability scores with auto modifiers, one-click checks and saves, HP with a Damage/Heal button, inventory and notes. Everyone can view the party's sheets but can only edit their own.
-- **Initiative tracker**: players roll with their DEX + bonus. The DM adds monsters (secret rolls) and steps through turns and rounds.
-- **Pings**: double-click the map to point at something.
-- **One-screen mode**: several players can share one browser and take turns, with the view switching automatically on each initiative turn.
-- Games are saved to disk, so you can stop the server and pick up next session.
+## 1. Adventure mode: the game is the DM
+
+Start **Play an adventure** and the game runs the story for you. Everyone (including the host) creates a hero and plays.
+
+- **An open world:** travel freely between locations on a world map. New places show up as you hear about them, and some roads stay locked until you find a way through.
+- **Scenarios with choices:** talk your way past a bandit queen, sneak, fight, solve a fey riddle or pay up. Many choices are **skill checks**: roll a d20 plus the bonus of the hero who picks it, and beat the DC (the target number). Let your best hero try.
+- **Quests:** the main quest can be solved several ways, and there are side quests, loot, gold and XP. Heroes level up to level 5. The journal tracks everything.
+- **Automatic combat:** heroes take turns in initiative order and the game plays the monsters. Fighters catch a Second Wind, Rogues sneak attack, Wizards cast Fire Bolt and Magic Missile, and Clerics heal and smite. Potions can revive a fallen friend. Fights scale to your party size.
+- **Resting:** rest at the inn to fully heal and get spells back. Camping in the wild heals half your HP, but something might find you. If the whole party falls, you wake up back in town with half your gold. The adventure doesn't end.
+- **One screen works too:** add everyone with **+ Player on this device**. In combat the screen switches to whoever's turn it is.
+
+The included adventure is **The Ashen Vale**: 8 locations, a main quest, 3 side quests, and 8 kinds of monsters. It takes roughly 1–2 hours and suits 2–4 heroes. Solo players can run two or three heroes from one screen.
+
+### Writing your own adventure
+
+Adventures are plain JavaScript data files in `adventures/`. Copy `adventures/ashen-vale.js`; the comment at the top explains the format: locations, paths, scenes, choices, checks, outcomes, monsters and items. Then add your file to the list at the top of `adventure.js`, and it shows up in the lobby. Run `npm test` afterwards, and add a playthrough test like the ones in `test/adventure.test.js`.
+
+## 2. Free tabletop: a person is the DM
+
+Start a **Free tabletop** game when one of you wants to run the session. You get a virtual tabletop, without the automatic story:
+
+- **Shared battle map:** upload any map image, line up the grid and zoom/pan. Moving a token shows the distance in feet.
+- **Tokens:** players move only their own. The DM can move everything, hide monsters from players, resize tokens and assign them to players.
+- **Dice and chat:** dice buttons or commands (`/r 1d20+5 Stealth`). Advantage and disadvantage, keep/drop (`4d6dl1`), and secret rolls only the DM sees. All rolls happen on the server, so nobody can fake them.
+- **Character sheets:** ability scores with auto modifiers, one-click checks and saves, HP with a Damage/Heal button, inventory and notes.
+- **Initiative tracker:** players roll with their DEX + bonus. The DM adds monsters and steps through turns.
+- **Pings:** double-click the map to point at something.
+
+Both modes save games to disk, so you can stop the server and pick up next session.
 
 ## Running it
 
@@ -30,7 +51,7 @@ The server prints the addresses to open:
   On your network:    http://192.168.1.23:3000
 ```
 
-1. **DM:** open the address, enter your name and click **Create game as DM**.
+1. **Host:** open the address, enter your name and click **Play an adventure** (or **Free tabletop** to be the DM).
 2. Click **Copy invite** in the top bar and send the link to your players. You can also just tell them the 6-letter code.
 3. **Players:** open the link, enter a name and click **Join**.
 
@@ -78,12 +99,15 @@ To wipe all games, stop the server and delete the `data` folder.
 ## Development
 
 ```bash
-npm test   # dice parser tests + a scripted multiplayer session against the real server
+npm test   # dice tests, a multiplayer session against the real server, full adventure
+           # playthroughs, and a fuzz test of thousands of random adventure actions
 ```
 
 | File | What's in it |
 |---|---|
-| `server.js` | HTTP + WebSocket server, game rules and permissions, saving to disk |
+| `server.js` | HTTP + WebSocket server, permissions, saving to disk |
+| `adventure.js` | Adventure engine: exploration, checks, quests, levelling and automated combat |
+| `adventures/` | Adventure content (story, map, monsters) |
 | `dice.js` | Dice expression parser |
 | `public/` | The web app (plain HTML/CSS/JS, no build step) |
 
@@ -91,4 +115,4 @@ The only dependency is [`ws`](https://github.com/websockets/ws).
 
 ## Not built (yet)
 
-Fog of war, line-of-sight, drawing on the map, and a 5e rules or monster compendium. The code is small and plain, so these are reasonable next additions.
+More adventures, more classes (ranger, paladin, bard), gear upgrades, fog of war and drawing on the tabletop map. The code is small and plain, so these are reasonable next additions.

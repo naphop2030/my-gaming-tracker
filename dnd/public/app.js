@@ -72,16 +72,27 @@
     return n;
   }
 
-  $('#createBtn').onclick = async () => {
+  async function createGame(opts) {
     if (!readName()) return;
     try {
-      const res = await fetch('/api/rooms', { method: 'POST' });
+      const res = await fetch('/api/rooms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(opts) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       store.set(`dnd.dm.${data.code}`, data.dmKey);
       enter(data.code);
     } catch (e) { lobbyError(e.message || 'Could not reach the server.'); }
-  };
+  }
+  $('#createBtn').onclick = () => createGame({ mode: 'tabletop' });
+
+  // Adventures the server knows about.
+  fetch('/api/adventures').then((r) => r.json()).then((list) => {
+    $('#advList').replaceChildren(...list.map((a) => {
+      const b = el('button', 'adv-pick');
+      b.append(el('span', 'adv-pick-title', `Play an adventure: ${a.title}`), el('span', 'adv-pick-blurb', a.blurb));
+      b.onclick = () => createGame({ mode: 'adventure', adventure: a.id });
+      return b;
+    }));
+  }).catch(() => {});
 
   async function joinFromLobby() {
     if (!readName()) return;
@@ -224,7 +235,7 @@
     if (c.state) S = c.state;
     render();
     renderSeats();
-    if (announce) toast(`Now playing as ${activeSeat().name}${me.isDM ? ' (DM)' : ''}`);
+    if (announce) toast(`Now playing as ${activeSeat().name}${me.isDM && !(S && S.mode === 'adventure') ? ' (DM)' : ''}`);
   }
 
   // When initiative moves on, hand the screen to whoever's turn it is.
@@ -276,7 +287,7 @@
       const b = el('button', '', seat.name);
       b.title = `Switch to ${seat.name}'s view`;
       b.onclick = () => switchSeat(seat.pid);
-      if (you?.isDM) b.append(el('span', 'role', 'DM'));
+      if (you?.isDM) b.append(el('span', 'role', S && S.mode === 'adventure' ? 'Host' : 'DM'));
       wrap.append(b);
       if (seat.pid !== pid) {
         const x = el('button', 'x', '×');
@@ -350,6 +361,10 @@
     renderSheet();
     renderInit();
     renderTokenPanel();
+    document.body.classList.toggle('mode-adventure', S.mode === 'adventure');
+    if (S.mode === 'adventure' && $('.tabs button.active').dataset.tab === 'tokens') $('.tabs button[data-tab=chat]').click();
+    if (window.renderAdventure) window.renderAdventure();
+    if (S.mode === 'adventure') return;
     loadBackground();
     draw();
   }
@@ -362,7 +377,7 @@
       .map((p) => {
         const c = el('span', `chip${p.online ? ' on' : ''}${p.isDM ? ' dm' : ''}`);
         c.append(el('span', 'dot'), el('span', '', p.name));
-        if (p.isDM) c.append(el('span', 'role', 'DM'));
+        if (p.isDM) c.append(el('span', 'role', S.mode === 'adventure' ? 'Host' : 'DM'));
         if (p.id === me.id) c.title = 'You';
         return c;
       }));
@@ -495,7 +510,10 @@
     return s;
   }
 
-  function sheetEditable() { return me.isDM || sheetTarget === me.id; }
+  function sheetEditable() {
+    if (S && S.adventure && S.adventure.party.some((p) => p.id === sheetTarget)) return false; // the game manages heroes
+    return me.isDM || sheetTarget === me.id;
+  }
 
   function renderSheet() {
     const who = $('#sheetWho');
@@ -1080,6 +1098,19 @@
     send({ t: 'token:move', id: t.id, x: nx, y: ny });
     draw();
   });
+
+  // Small API for adventure.js
+  window.TT = {
+    get S() { return S; },
+    get me() { return me; },
+    send: (m) => send(m),
+    el,
+    toast,
+    seatName: () => activeSeat().name,
+    seatCount: () => seats.length,
+    localSeatFor: (publicId) => seats.find((x) => conns.get(x.pid)?.you?.id === publicId)?.pid || null,
+    switchSeat: (p) => switchSeat(p),
+  };
 
   // Auto-join when opened with ?room=CODE and we already know our name.
   if (roomCode && myName) enter(roomCode);
