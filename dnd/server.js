@@ -15,6 +15,8 @@ const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(__dirname, 'data'));
 const MAP_DIR = path.join(DATA_DIR, 'maps');
+const PORTRAIT_DIR = path.join(DATA_DIR, 'portraits');
+const MAX_PORTRAIT_BYTES = 2 * 1024 * 1024;
 const ROOMS_FILE = path.join(DATA_DIR, 'rooms.json');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
@@ -34,6 +36,7 @@ const HELP = [
 ].join('\n');
 
 fs.mkdirSync(MAP_DIR, { recursive: true });
+fs.mkdirSync(PORTRAIT_DIR, { recursive: true });
 
 // ---------- persistence ----------
 const rooms = new Map();
@@ -94,6 +97,7 @@ function newRoom(mode = 'tabletop', adventureId = null) {
     tokens: [],
     chat: [],
     sheets: {}, // public player id -> sheet
+    portraits: {}, // public player id -> image url
     initiative: { list: [], current: null, round: 1 },
   };
 }
@@ -146,6 +150,7 @@ function viewFor(room, client) {
     tokens: dm ? room.tokens : room.tokens.filter((t) => !t.hidden),
     chat: dm ? room.chat : room.chat.filter((m) => !m.private || m.from === client.publicId),
     sheets: room.sheets,
+    portraits: room.portraits || {},
     initiative: room.initiative,
     mode: room.mode || 'tabletop',
     adventure: room.adventure ? adventure.view(room, client.publicId) : null,
@@ -440,6 +445,10 @@ function removeMapFile(bg) {
   const file = String(bg || '').replace(/^\/maps\//, '');
   if (MAP_FILE_RE.test(file)) fs.rm(path.join(MAP_DIR, file), { force: true }, () => {});
 }
+function removePortraitFile(url) {
+  const file = String(url || '').replace(/^\/portraits\//, '');
+  if (MAP_FILE_RE.test(file)) fs.rm(path.join(PORTRAIT_DIR, file), { force: true }, () => {});
+}
 
 function readBody(req, limit) {
   return new Promise((resolve, reject) => {
@@ -461,7 +470,7 @@ function readBody(req, limit) {
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png',
-  '.jpg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.ico': 'image/x-icon',
+  '.jpg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.ico': 'image/x-icon', '.md': 'text/markdown; charset=utf-8',
 };
 
 function json(res, status, body) {
@@ -521,7 +530,37 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { bg: room.map.bg });
     }
 
+    m = p.match(/^\/api\/rooms\/([A-Z0-9]{6})\/portrait$/);
+    if (m && (req.method === 'POST' || req.method === 'DELETE')) {
+      const room = rooms.get(m[1]);
+      if (!room) return json(res, 404, { error: 'No game with that code.' });
+      const player = room.players[String(req.headers['x-player-id'] || '')];
+      if (!player) return json(res, 403, { error: 'Join the game first.' });
+      room.portraits = room.portraits || {};
+      if (req.method === 'DELETE') {
+        removePortraitFile(room.portraits[player.id]);
+        delete room.portraits[player.id];
+        broadcast(room);
+        return json(res, 200, { ok: true });
+      }
+      const ext = IMAGE_TYPES[String(req.headers['content-type'] || '').split(';')[0].trim()];
+      if (!ext) return json(res, 415, { error: 'Upload a PNG, JPEG, WebP or GIF image.' });
+      const body = await readBody(req, MAX_PORTRAIT_BYTES);
+      const file = `${room.code}-${player.id.replace(/[^A-Za-z0-9_-]/g, '')}-${rid(4)}.${ext}`;
+      await fs.promises.writeFile(path.join(PORTRAIT_DIR, file), body);
+      removePortraitFile(room.portraits[player.id]);
+      room.portraits[player.id] = `/portraits/${file}`;
+      broadcast(room);
+      return json(res, 200, { url: room.portraits[player.id] });
+    }
+
     if (req.method !== 'GET' && req.method !== 'HEAD') return json(res, 405, { error: 'Method not allowed' });
+
+    m = p.match(/^\/portraits\/(.+)$/);
+    if (m) {
+      if (!MAP_FILE_RE.test(m[1])) return json(res, 404, { error: 'Not found' });
+      return serveFile(res, path.join(PORTRAIT_DIR, m[1]), 'public, max-age=31536000, immutable');
+    }
 
     m = p.match(/^\/maps\/(.+)$/);
     if (m) {

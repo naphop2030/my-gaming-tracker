@@ -533,6 +533,7 @@
     const s = currentSheet(sheetTarget);
     const editable = sheetEditable();
     $('#sheetReadonly').hidden = editable;
+    renderPortraitBox();
     $$('[data-edit-only]', sheetForm).forEach((x) => { x.hidden = !editable; });
     for (const input of sheetForm.elements) {
       if (!input.name) continue;
@@ -543,6 +544,51 @@
     }
     updateMods();
   }
+
+  // ---------- character picture ----------
+  function renderPortraitBox() {
+    const mine = sheetTarget === me.id && !!me.id;
+    $('#portraitBox').hidden = !mine;
+    if (!mine) return;
+    const url = S.portraits && S.portraits[me.id];
+    const prev = $('#portraitPreview');
+    if (prev.dataset.url === (url || '')) return;
+    prev.dataset.url = url || '';
+    const box = el('div', 'portrait lg');
+    if (url) {
+      const img = el('img');
+      img.src = url;
+      img.alt = 'Your character picture';
+      box.append(img);
+    } else {
+      box.classList.add('medal', 'empty');
+      box.textContent = '?';
+    }
+    prev.replaceChildren(box);
+    $('#portraitRemove').hidden = !url;
+  }
+
+  // Crops to a square and shrinks the picture before uploading, so big photos are fine.
+  async function uploadPortrait(file) {
+    if (!file || !file.type.startsWith('image/')) return toast('Pick an image file.', true);
+    try {
+      const bmp = await createImageBitmap(file);
+      const side = Math.min(bmp.width, bmp.height);
+      const c = document.createElement('canvas');
+      c.width = 320;
+      c.height = 320;
+      c.getContext('2d').drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, 320, 320);
+      const blob = await new Promise((res) => c.toBlob(res, 'image/jpeg', 0.88));
+      const res = await fetch(`/api/rooms/${roomCode}/portrait`, { method: 'POST', headers: { 'Content-Type': 'image/jpeg', 'X-Player-Id': activePid }, body: blob });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      toast('Picture updated!');
+    } catch (e) { toast(e.message || 'Could not upload that picture.', true); }
+  }
+  $('#portraitFile').onchange = (e) => { const f = e.target.files[0]; e.target.value = ''; uploadPortrait(f); };
+  $('#portraitRemove').onclick = async () => {
+    await fetch(`/api/rooms/${roomCode}/portrait`, { method: 'DELETE', headers: { 'X-Player-Id': activePid } });
+  };
 
   function updateMods() {
     const s = readSheetForm();
@@ -929,6 +975,20 @@
     if (pings.length) draw();
   }
 
+  // Player portraits drawn inside their tokens.
+  const tokenImages = new Map();
+  function tokenImage(url) {
+    if (!url) return null;
+    let img = tokenImages.get(url);
+    if (!img) {
+      img = new Image();
+      img.onload = () => draw();
+      img.src = url;
+      tokenImages.set(url, img);
+    }
+    return img.complete && img.naturalWidth ? img : null;
+  }
+
   function drawToken(t, x, y) {
     const r = (t.size * CELL) / 2;
     const cx = x * CELL + r;
@@ -944,7 +1004,18 @@
     ctx.arc(cx, cy, r - 4, 0, Math.PI * 2);
     ctx.fillStyle = t.color;
     ctx.fill();
-    ctx.lineWidth = t.id === selectedId ? 4 : 2;
+    const pic = t.owner && tokenImage(S.portraits && S.portraits[t.owner]);
+    if (pic) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, r - 7, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.drawImage(pic, cx - r + 7, cy - r + 7, (r - 7) * 2, (r - 7) * 2);
+      ctx.restore();
+      ctx.beginPath();
+      ctx.arc(cx, cy, r - 4, 0, Math.PI * 2);
+    }
+    ctx.lineWidth = t.id === selectedId ? 4 : pic ? 3 : 2;
     ctx.strokeStyle = t.id === selectedId ? '#d8a948' : t.owner === me.id ? '#ffffff' : 'rgba(0,0,0,.6)';
     if (t.hidden) ctx.setLineDash([5, 4]);
     ctx.stroke();
@@ -954,7 +1025,7 @@
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.font = `bold ${Math.round(r * 0.75)}px Georgia, serif`;
-    ctx.fillText(initials(t.label), cx, cy + 1);
+    if (!pic) ctx.fillText(initials(t.label), cx, cy + 1);
 
     // name tag
     ctx.font = 'bold 12px system-ui, sans-serif';
@@ -1110,6 +1181,7 @@
     seatCount: () => seats.length,
     localSeatFor: (publicId) => seats.find((x) => conns.get(x.pid)?.you?.id === publicId)?.pid || null,
     switchSeat: (p) => switchSeat(p),
+    uploadPortrait: (f) => uploadPortrait(f),
   };
 
   // Auto-join when opened with ?room=CODE and we already know our name.

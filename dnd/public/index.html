@@ -61,12 +61,19 @@
       <canvas id="map"></canvas>
       <section id="adventure" class="adv" hidden>
         <header class="adv-head">
-          <div class="adv-where">
-            <div class="adv-region"><span id="advTitle"></span> · <span id="advRegion"></span></div>
-            <h2 id="advPlace"></h2>
+          <div class="adv-scene" id="advScene"></div>
+          <canvas class="adv-weather" id="advWeather" aria-hidden="true"></canvas>
+          <div class="adv-plaque">
+            <span class="ico place-ico" id="advPlaceIcon" aria-hidden="true"></span>
+            <div>
+              <div class="adv-region"><span id="advTitle"></span> · <span id="advRegion"></span></div>
+              <h2 id="advPlace"></h2>
+            </div>
           </div>
           <div class="adv-purse" title="Party gold and healing potions">
-            <span class="coin">●</span> <b id="advGold">0</b> gold · <span id="advPotions">0 potions</span>
+            <span class="ico gold" style="--i:url(/art/icons/gold.svg)" aria-hidden="true"></span> <b id="advGold">0</b> gold ·
+            <span class="ico potion-ico" style="--i:url(/art/icons/potion.svg)" aria-hidden="true"></span> <span id="advPotions">0 potions</span>
+            <button id="advMute" class="adv-mute" type="button" title="Sound effects on/off"></button>
           </div>
           <nav class="adv-tabs">
             <button data-adv-tab="story" class="active">Story</button>
@@ -75,12 +82,12 @@
           </nav>
         </header>
         <div class="adv-body">
-          <div data-adv-view="story" class="adv-story">
+          <div data-adv-view="story" class="adv-story" id="advStory">
             <div id="advLog" class="adv-log" aria-live="polite"></div>
             <div id="advNow" class="adv-now"></div>
           </div>
           <div data-adv-view="world" class="adv-world" hidden>
-            <svg id="advMap" viewBox="0 0 100 70" role="img" aria-label="World map"></svg>
+            <div class="board-frame"><div id="advBoard" class="board" role="group" aria-label="World map"></div></div>
             <p class="hint">Click a glowing place next to you to travel there. Dashed roads are locked for now.</p>
           </div>
           <div data-adv-view="journal" class="adv-journal" hidden></div>
@@ -125,6 +132,17 @@
           <label class="field grow">Viewing
             <select id="sheetWho"></select>
           </label>
+        </div>
+        <div id="portraitBox" class="portrait-box" hidden>
+          <div id="portraitPreview"></div>
+          <div class="portrait-text">
+            <b>Character picture</b>
+            <p class="hint">Shown on your hero card and your token on the map. Square pictures look best.</p>
+            <div class="row wrap">
+              <label class="btn small">Upload picture<input type="file" id="portraitFile" accept="image/*" hidden></label>
+              <button type="button" id="portraitRemove" class="btn ghost small">Remove</button>
+            </div>
+          </div>
         </div>
         <p id="sheetReadonly" class="hint" hidden>You're viewing someone else's sheet. Only they (or the DM) can edit it.</p>
         <form id="sheetForm" class="sheet" autocomplete="off">
@@ -233,6 +251,8 @@
 </div>
 
 <div id="toast" class="toast" role="status"></div>
+<script src="art/scenes.js"></script>
+<script src="fx.js"></script>
 <script src="app.js"></script>
 <script src="adventure.js"></script>
 </body>

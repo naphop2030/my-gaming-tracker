@@ -9,6 +9,11 @@ const ADVENTURES = {};
 for (const a of [require('./adventures/ashen-vale')]) ADVENTURES[a.id] = a;
 
 const LOG_LIMIT = 150;
+let ICON_FILES = new Set();
+try {
+  ICON_FILES = new Set(require('fs').readdirSync(require('path').join(__dirname, 'public', 'art', 'icons')).map((f) => f.replace(/\.svg$/, '')));
+} catch { /* no icons installed */ }
+const icon = (name, fallback) => (name && ICON_FILES.has(name) ? name : fallback);
 const XP_LEVELS = [0, 300, 900, 2700, 6500];
 const MAX_LEVEL = 5;
 
@@ -100,6 +105,7 @@ function test(adv, cond) {
 
 const fill = (text, actor) => String(text).replace(/\{name\}/g, actor ? actor.name : 'The party');
 const itemName = (A, id) => (A.items[id] && A.items[id].name) || id;
+const itemIcon = (A, id) => icon((A.items[id] && A.items[id].icon) || id, 'potion');
 const prof = (c) => (c.level >= 5 ? 3 : 2);
 const fullUses = (cls, level) => ({
   secondWind: cls === 'fighter' ? 1 : 0,
@@ -130,6 +136,7 @@ function checkLabel(check) {
   return `${ABILITY_NAMES[check.ability]}${check.save ? ' save' : ''}`;
 }
 
+function idOf(adv, c) { return Object.keys(adv.party).find((id) => adv.party[id] === c) || null; }
 function heroes(adv) { return Object.entries(adv.party).map(([id, c]) => ({ id, c })); }
 const alive = (adv) => heroes(adv).filter((h) => h.c.hp > 0);
 
@@ -155,7 +162,7 @@ function giveXp(adv, amount) {
       c.hp += gain;
       const uses = fullUses(c.cls, c.level);
       c.uses.slots += uses.slots - fullUses(c.cls, c.level - 1).slots;
-      log(adv, 'level', `${c.name} reaches level ${c.level}! (+${gain} max HP)`);
+      log(adv, 'level', `${c.name} reaches level ${c.level}! (+${gain} max HP)`, { fx: { t: 'level', id: idOf(adv, c) } });
     }
   }
 }
@@ -173,9 +180,9 @@ function setQuest(adv, q) {
   if (!entry) {
     entry = { id: q.id, title: q.title || q.id, text: '', done: false };
     adv.journal.push(entry);
-    log(adv, 'quest', `New quest: ${entry.title}`);
+    log(adv, 'quest', `New quest: ${entry.title}`, { fx: { t: 'quest' } });
   } else if (q.done && !entry.done) {
-    log(adv, 'quest', `Quest complete: ${entry.title}`);
+    log(adv, 'quest', `Quest complete: ${entry.title}`, { fx: { t: 'quest', done: true } });
   } else {
     log(adv, 'quest', `Journal updated: ${entry.title}`);
   }
@@ -247,11 +254,11 @@ function apply(room, actor, o) {
   for (const f of [].concat(o.unset || [])) delete adv.flags[f];
   if (o.gold) {
     adv.gold = Math.max(0, adv.gold + o.gold);
-    log(adv, 'loot', o.gold > 0 ? `+${o.gold} gold` : `${o.gold} gold`);
+    log(adv, 'loot', o.gold > 0 ? `+${o.gold} gold` : `${o.gold} gold`, o.gold > 0 ? { fx: { t: 'gold', n: o.gold } } : undefined);
   }
   for (const [id, n] of Object.entries(o.give || {})) {
     adv.inventory[id] = (adv.inventory[id] || 0) + n;
-    log(adv, 'loot', `Found: ${itemName(A, id)}${n > 1 ? ` ×${n}` : ''}`);
+    log(adv, 'loot', `Found: ${itemName(A, id)}${n > 1 ? ` ×${n}` : ''}`, { fx: { t: 'item', icon: itemIcon(A, id) } });
   }
   for (const [id, n] of Object.entries(o.take || {})) {
     adv.inventory[id] = Math.max(0, (adv.inventory[id] || 0) - n);
@@ -259,14 +266,14 @@ function apply(room, actor, o) {
   if (o.damage && actor) {
     const dmg = dice(o.damage);
     actor.hp = Math.max(1, actor.hp - dmg); // story damage hurts, but never knocks anyone out
-    log(adv, 'hurt', `${actor.name} takes ${dmg} damage.`);
+    log(adv, 'hurt', `${actor.name} takes ${dmg} damage.`, { fx: { t: 'hurt', id: idOf(adv, actor), n: dmg } });
   }
   if (o.healAll) restAll(adv);
   if (o.quest) setQuest(adv, o.quest);
   if (o.xp) giveXp(adv, o.xp);
   if (o.end) {
     adv.ended = { title: o.end.title, text: o.end.text, at: Date.now() };
-    log(adv, 'ending', o.end.text, { title: o.end.title });
+    log(adv, 'ending', o.end.text, { title: o.end.title, fx: { t: 'ending' } });
   }
   if (o.goto) moveTo(room, o.goto, false);
   if (o.combat) {
@@ -304,7 +311,7 @@ function startCombat(room, monsterIds, opts = {}) {
     return { id: rid(), key, name: counts[key] > 1 ? `${M.name} ${seen[key]}` : M.name, hp, maxHp: hp };
   });
   adv.combat = { monsters, win: opts.win || null, canFlee: opts.flee !== false, atkAdj: n === 1 ? -1 : 0 };
-  log(adv, 'combat', `${opts.text ? `${opts.text} ` : ''}Combat begins: ${monsters.map((m) => m.name).join(', ')}.`, { title: 'Combat' });
+  log(adv, 'combat', `${opts.text ? `${opts.text} ` : ''}Combat begins: ${monsters.map((m) => m.name).join(', ')}.`, { title: 'Combat', fx: { t: 'combat' } });
 
   const order = [];
   for (const { id, c } of alive(adv)) {
@@ -328,7 +335,7 @@ function monsterTurn(room, m) {
   for (let i = 0; i < (M.attacks || 1); i++) {
     const targets = alive(adv);
     if (!targets.length) return;
-    const { c } = pick(targets);
+    const { id: heroId, c } = pick(targets);
     const r1 = d20();
     const nat = c.defending ? Math.min(r1, d20()) : r1;
     const total = nat + M.atk + (adv.combat.atkAdj || 0);
@@ -336,10 +343,10 @@ function monsterTurn(room, m) {
     if (nat === 20 || (nat !== 1 && total >= ac)) {
       const dmg = dice(nat === 20 ? critDice(M.dmg) : M.dmg);
       c.hp = Math.max(0, c.hp - dmg);
-      log(adv, 'hurt', `${m.name} ${M.verb || 'attacks'} ${c.name}: ${total} vs AC ${ac}. Hit for ${dmg}${nat === 20 ? ' (critical!)' : ''}.`);
-      if (c.hp === 0) log(adv, 'hurt', `${c.name} falls unconscious!`);
+      log(adv, 'hurt', `${m.name} ${M.verb || 'attacks'} ${c.name}: ${total} vs AC ${ac}. Hit for ${dmg}${nat === 20 ? ' (critical!)' : ''}.`, { fx: { t: 'hurt', id: heroId, from: m.id, n: dmg, crit: nat === 20 } });
+      if (c.hp === 0) log(adv, 'hurt', `${c.name} falls unconscious!`, { fx: { t: 'down', id: heroId } });
     } else {
-      log(adv, 'combat', `${m.name} ${M.verb || 'attacks'} ${c.name}: ${total} vs AC ${ac}. Miss${c.defending ? ' (defending)' : ''}.`);
+      log(adv, 'combat', `${m.name} ${M.verb || 'attacks'} ${c.name}: ${total} vs AC ${ac}. Miss${c.defending ? ' (defending)' : ''}.`, { fx: { t: 'miss', id: heroId, from: m.id } });
     }
   }
 }
@@ -385,7 +392,7 @@ function endCombat(room, how) {
   for (const { c: h } of heroes(adv)) h.defending = false;
 
   if (how === 'lose') {
-    log(adv, 'ending', A.defeat || 'The party falls...', { title: 'Defeat' });
+    log(adv, 'ending', A.defeat || 'The party falls...', { title: 'Defeat', fx: { t: 'defeat' } });
     adv.gold = Math.floor(adv.gold / 2);
     restAll(adv);
     adv.prev = null;
@@ -400,7 +407,7 @@ function endCombat(room, how) {
     if (adv.prev && adv.prev !== adv.location) moveTo(room, adv.prev, false);
     return;
   }
-  log(adv, 'combat', 'Victory!', { title: 'Victory' });
+  log(adv, 'combat', 'Victory!', { title: 'Victory', fx: { t: 'victory' } });
   giveXp(adv, c.monsters.reduce((sum, m) => sum + (A.monsters[m.key].xp || 0), 0));
   if (c.win) apply(room, null, c.win);
 }
@@ -426,17 +433,17 @@ function heroActions(adv, c) {
   return out;
 }
 
-function attackRoll(adv, c, m, bonus, dmgExpr, verb) {
+function attackRoll(adv, c, m, bonus, dmgExpr, verb, fxStyle = 'slash') {
   const M = content(adv).monsters[m.key];
   const nat = d20();
   const total = nat + bonus;
   if (nat === 20 || (nat !== 1 && total >= M.ac)) {
     const dmg = dice(nat === 20 ? critDice(dmgExpr) : dmgExpr);
     m.hp = Math.max(0, m.hp - dmg);
-    log(adv, 'hit', `${c.name} ${verb} ${m.name}: ${total} vs AC ${M.ac}. Hit for ${dmg}${nat === 20 ? ' (critical!)' : ''}.`);
-    if (m.hp === 0) log(adv, 'hit', `${m.name} is defeated!`);
+    log(adv, 'hit', `${c.name} ${verb} ${m.name}: ${total} vs AC ${M.ac}. Hit for ${dmg}${nat === 20 ? ' (critical!)' : ''}.`, { fx: { t: 'dmg', id: m.id, n: dmg, crit: nat === 20, by: idOf(adv, c), style: fxStyle } });
+    if (m.hp === 0) log(adv, 'hit', `${m.name} is defeated!`, { fx: { t: 'kill', id: m.id } });
   } else {
-    log(adv, 'combat', `${c.name} ${verb} ${m.name}: ${total} vs AC ${M.ac}. Miss${nat === 1 ? ' (natural 1)' : ''}.`);
+    log(adv, 'combat', `${c.name} ${verb} ${m.name}: ${total} vs AC ${M.ac}. Miss${nat === 1 ? ' (natural 1)' : ''}.`, { fx: { t: 'miss', id: m.id, by: idOf(adv, c) } });
   }
 }
 
@@ -444,7 +451,7 @@ function heal(adv, healer, target, expr, how) {
   const amount = Math.max(1, dice(expr));
   const wasDown = target.hp <= 0;
   target.hp = Math.min(target.maxHp, target.hp + amount);
-  log(adv, 'heal', `${healer.name} ${how}${target === healer ? '' : ` on ${target.name}`}: +${amount} HP${wasDown ? `. ${target.name} is back on their feet!` : '.'}`);
+  log(adv, 'heal', `${healer.name} ${how}${target === healer ? '' : ` on ${target.name}`}: +${amount} HP${wasDown ? `. ${target.name} is back on their feet!` : '.'}`, { fx: { t: 'heal', id: idOf(adv, target), n: amount } });
 }
 
 function combatAction(room, meId, msg) {
@@ -469,7 +476,7 @@ function combatAction(room, meId, msg) {
       const abil = c.cls === 'rogue' ? 'dex' : W.ability;
       const m = mod(c.abilities[abil]);
       const sneak = c.cls === 'rogue' ? `+${Math.ceil(c.level / 2)}d6` : '';
-      attackRoll(adv, c, target, prof(c) + m, `${W.dmg}${signed(m)}${sneak}`, `strikes with ${W.name} at`);
+      attackRoll(adv, c, target, prof(c) + m, `${W.dmg}${signed(m)}${sneak}`, `strikes with ${W.name} at`, c.cls === 'rogue' ? 'stab' : 'slash');
       break;
     }
     case 'second-wind':
@@ -477,14 +484,14 @@ function combatAction(room, meId, msg) {
       heal(adv, c, c, `1d10+${c.level}`, 'catches a second wind');
       break;
     case 'fire-bolt':
-      attackRoll(adv, c, target, prof(c) + mod(c.abilities.int), c.level >= 5 ? '2d10' : '1d10', 'hurls a Fire Bolt at');
+      attackRoll(adv, c, target, prof(c) + mod(c.abilities.int), c.level >= 5 ? '2d10' : '1d10', 'hurls a Fire Bolt at', 'fire');
       break;
     case 'magic-missile': {
       c.uses.slots -= 1;
       const dmg = dice('1d4+1') + dice('1d4+1') + dice('1d4+1');
       target.hp = Math.max(0, target.hp - dmg);
-      log(adv, 'hit', `${c.name} casts Magic Missile at ${target.name}: ${dmg} damage.`);
-      if (target.hp === 0) log(adv, 'hit', `${target.name} is defeated!`);
+      log(adv, 'hit', `${c.name} casts Magic Missile at ${target.name}: ${dmg} damage.`, { fx: { t: 'dmg', id: target.id, n: dmg, style: 'arcane' } });
+      if (target.hp === 0) log(adv, 'hit', `${target.name} is defeated!`, { fx: { t: 'kill', id: target.id } });
       break;
     }
     case 'sacred-flame': {
@@ -492,12 +499,12 @@ function combatAction(room, meId, msg) {
       const dc = 8 + prof(c) + mod(c.abilities.wis);
       const save = d20() + (M.save || 0);
       if (save >= dc) {
-        log(adv, 'combat', `${c.name} calls down Sacred Flame on ${target.name}: it saves (${save} vs DC ${dc}).`);
+        log(adv, 'combat', `${c.name} calls down Sacred Flame on ${target.name}: it saves (${save} vs DC ${dc}).`, { fx: { t: 'miss', id: target.id } });
       } else {
         const dmg = dice(c.level >= 5 ? '2d8' : '1d8');
         target.hp = Math.max(0, target.hp - dmg);
-        log(adv, 'hit', `${c.name} calls down Sacred Flame on ${target.name}: ${save} vs DC ${dc}. ${dmg} radiant damage.`);
-        if (target.hp === 0) log(adv, 'hit', `${target.name} is defeated!`);
+        log(adv, 'hit', `${c.name} calls down Sacred Flame on ${target.name}: ${save} vs DC ${dc}. ${dmg} radiant damage.`, { fx: { t: 'dmg', id: target.id, n: dmg, style: 'holy' } });
+        if (target.hp === 0) log(adv, 'hit', `${target.name} is defeated!`, { fx: { t: 'kill', id: target.id } });
       }
       break;
     }
@@ -511,17 +518,17 @@ function combatAction(room, meId, msg) {
       break;
     case 'defend':
       c.defending = true;
-      log(adv, 'combat', `${c.name} takes a defensive stance.`);
+      log(adv, 'combat', `${c.name} takes a defensive stance.`, { fx: { t: 'defend', id: meId } });
       break;
     case 'flee': {
       const bonus = skillBonus(c, 'acrobatics');
       const total = d20() + bonus;
       if (total >= 12) {
-        log(adv, 'roll', `${c.name} looks for an escape: Acrobatics ${total} vs DC 12. Success!`);
+        log(adv, 'roll', `${c.name} looks for an escape: Acrobatics ${total} vs DC 12. Success!`, { ok: true, fx: { t: 'check', total, dc: 12, ok: true } });
         endCombat(room, 'fled');
         return;
       }
-      log(adv, 'roll', `${c.name} looks for an escape: Acrobatics ${total} vs DC 12. No way out!`);
+      log(adv, 'roll', `${c.name} looks for an escape: Acrobatics ${total} vs DC 12. No way out!`, { ok: false, fx: { t: 'check', total, dc: 12, ok: false } });
       break;
     }
     default:
@@ -645,7 +652,9 @@ function handle(room, me, isHost, msg) {
         const nat = d20();
         const total = nat + bonus;
         const ok = total >= choice.check.dc;
-        log(adv, 'roll', `${c.name} rolls ${checkLabel(choice.check)}: ${nat} ${signed(bonus)} = ${total} vs DC ${choice.check.dc}. ${ok ? 'Success!' : 'Failure.'}`, { ok });
+        log(adv, 'roll', `${c.name} rolls ${checkLabel(choice.check)}: ${nat} ${signed(bonus)} = ${total} vs DC ${choice.check.dc}. ${ok ? 'Success!' : 'Failure.'}`, {
+          ok, fx: { t: 'check', nat, bonus, total, dc: choice.check.dc, ok, label: checkLabel(choice.check), who: c.name },
+        });
         apply(room, c, ok ? choice.success : choice.failure);
       } else {
         apply(room, c, choice);
@@ -738,21 +747,22 @@ function view(room, meId) {
 
   return {
     id: adv.id, title: A.title, gold: adv.gold,
-    location: { id: adv.location, name: L.name, region: L.region, desc: locationDesc(adv, adv.location) },
+    location: { id: adv.location, name: L.name, region: L.region, desc: locationDesc(adv, adv.location), scene: L.scene || adv.location, image: L.image || null, effect: L.effect || null, icon: icon(L.icon || adv.location, 'map') },
+    ambience: ((A.ambience && A.ambience.when) || []).filter((x) => test(adv, x.when)).map((x) => x.value)[0] || (A.ambience && A.ambience.default) || 'clear',
     actions,
     exits: adv.combat ? [] : pathsFrom(adv, adv.location).map((p) => ({ to: p.to, name: A.locations[p.to].name, ok: p.ok, locked: p.ok ? null : p.locked, visited: !!adv.visited[p.to] })),
     scene,
     world: {
-      nodes: [...known].map((id) => ({ id, name: A.locations[id].name, region: A.locations[id].region, x: A.locations[id].x, y: A.locations[id].y, visited: !!adv.visited[id], here: id === adv.location })),
+      nodes: [...known].map((id) => ({ id, name: A.locations[id].name, region: A.locations[id].region, icon: icon(A.locations[id].icon || id, 'map'), x: A.locations[id].x, y: A.locations[id].y, visited: !!adv.visited[id], here: id === adv.location })),
       edges: A.paths
         .filter((p) => known.has(p.a) && known.has(p.b) && (test(adv, p.when) || !p.hidden))
         .map((p) => ({ a: p.a, b: p.b, ok: test(adv, p.when) })),
     },
     party,
-    inventory: Object.entries(adv.inventory).filter(([, n]) => n > 0).map(([id, n]) => ({ id, n, name: itemName(A, id), desc: (A.items[id] && A.items[id].desc) || '' })),
+    inventory: Object.entries(adv.inventory).filter(([, n]) => n > 0).map(([id, n]) => ({ id, n, name: itemName(A, id), desc: (A.items[id] && A.items[id].desc) || '', icon: itemIcon(A, id) })),
     combat: adv.combat ? {
       canFlee: adv.combat.canFlee,
-      monsters: adv.combat.monsters.map((m) => ({ id: m.id, name: m.name, hp: m.hp, maxHp: m.maxHp, ac: A.monsters[m.key].ac })),
+      monsters: adv.combat.monsters.map((m) => ({ id: m.id, key: m.key, name: m.name, hp: m.hp, maxHp: m.maxHp, ac: A.monsters[m.key].ac, icon: icon(A.monsters[m.key].icon || m.key, 'skull'), boss: (A.monsters[m.key].xp || 0) >= 200 })),
     } : null,
     myActions: me && adv.combat ? heroActions(adv, me) : null,
     journal: adv.journal,

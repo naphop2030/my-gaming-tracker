@@ -14,6 +14,9 @@
 //   combat (list of monster ids, with `win` outcome and `flee: false`), end ({ title, text }).
 // - conditions (`when`) are flag names, 'item:<id>', or '!...' to negate. Arrays mean "all of".
 //   Every scene you open sets the flag 'seen:<scene id>'.
+// - Looks: each location can set `effect` (fog, fireflies, embers, wisps, drips, smoke) and `image`
+//   (a picture in public/art/, e.g. '/art/my-village.jpg') to replace the drawn scene.
+//   Monsters, items and locations can set `icon` (a file name from public/art/icons/).
 // - In text, {name} becomes the name of the hero who made the choice.
 
 module.exports = {
@@ -24,6 +27,8 @@ module.exports = {
   startGold: 15,
   startItems: { potion: 1 },
   intro: 'For two hundred years the Cinder Bell of Saint Aldric\'s Abbey has rung at every dusk. Three weeks ago it fell silent. Since then, grey ash has drifted down over the Vale like slow snow, and the fields of Thornwick have begun to wither.\n\nYou arrive in Thornwick at midday, with lanterns burning against the gloom.',
+  // Weather drawn over every scene: 'ash' until the bell rings, then clear skies.
+  ambience: { default: 'ash', when: [{ when: 'bell-rung', value: 'clear' }] },
   defeat: 'Darkness takes you... You wake in a bed at the Sleeping Ember, bandaged and sore. A farmer found you and carted you back to Thornwick. Your purse is lighter than it was.',
 
   items: {
@@ -46,7 +51,7 @@ module.exports = {
 
   locations: {
     thornwick: {
-      name: 'Thornwick', region: 'Village', x: 50, y: 60, safe: true,
+      name: 'Thornwick', region: 'Village', x: 50, y: 60, effect: 'smoke', safe: true,
       desc: 'Thornwick huddles around a stone well in the crook of the Vale. Ash settles on thatched roofs and on fields that should be green by now. Folk hurry between doorways with scarves over their mouths.',
       descIf: [{ when: 'bell-rung', text: 'The ash has stopped falling. Children are chasing each other through the last grey drifts, and someone has started singing in the tavern.' }],
       inn: { name: 'the Sleeping Ember', price: 10 },
@@ -63,7 +68,7 @@ module.exports = {
     },
 
     'old-road': {
-      name: 'The Old Road', region: 'Crossroads', x: 50, y: 40,
+      name: 'The Old Road', region: 'Crossroads', x: 50, y: 40, effect: 'fog',
       desc: 'A rutted road of old imperial stone runs north through dead heather. Four ways meet at a leaning waystone: west into Whisperwood, east toward the reek of Greyfen, north-west to a broken watchtower, and north, up long switchbacks, to the abbey.',
       encounters: [
         { when: '!wolves-cleared', chance: 0.45, groups: [['wolf', 'wolf'], ['wolf']] },
@@ -76,7 +81,7 @@ module.exports = {
     },
 
     whisperwood: {
-      name: 'Whisperwood', region: 'Forest', x: 25, y: 42,
+      name: 'Whisperwood', region: 'Forest', x: 25, y: 42, effect: 'fireflies',
       desc: 'Old trees lean together overhead, their leaves curled and grey. Strands of web glint between the trunks. Somewhere deeper in, something clicks. It sounds like a lot of somethings.',
       encounters: [{ chance: 0.3, groups: [['spider'], ['wolf', 'wolf']] }],
       actions: [
@@ -86,7 +91,7 @@ module.exports = {
     },
 
     hollow: {
-      name: 'Hermit\'s Hollow', region: 'Hills', x: 9, y: 24, safe: true,
+      name: 'Hermit\'s Hollow', region: 'Hills', x: 9, y: 24, effect: 'smoke', safe: true,
       desc: 'A crooked cottage sits in a fold of the hills, smoke curling from a chimney shaped like a teapot. Herbs hang drying from every eave. A goat regards you with deep suspicion.',
       actions: [
         { label: 'Knock on the door', scene: 'hermit', when: '!seen:hermit' },
@@ -95,7 +100,7 @@ module.exports = {
     },
 
     watchtower: {
-      name: 'Redcap Watchtower', region: 'Ruins', x: 29, y: 16,
+      name: 'Redcap Watchtower', region: 'Ruins', x: 29, y: 16, effect: 'embers',
       desc: 'A broken tower of grey stone leans over the hill road. Red rags flutter from its top, the mark of Redcap Vesh\'s crew. Smoke rises from a cookfire in the courtyard.',
       descIf: [{ when: 'vesh-done', text: 'The bandits keep their distance now, and watch you with wary respect.' }],
       actions: [
@@ -104,7 +109,7 @@ module.exports = {
     },
 
     greyfen: {
-      name: 'Greyfen Marsh', region: 'Marsh', x: 76, y: 46,
+      name: 'Greyfen Marsh', region: 'Marsh', x: 76, y: 46, effect: 'wisps',
       desc: 'The road dissolves into black water and reeds. Pale lights drift over the marsh, always a little further away. The air smells of rot and old smoke.',
       encounters: [{ chance: 0.4, groups: [['zombie'], ['zombie', 'zombie']] }],
       actions: [
@@ -114,7 +119,7 @@ module.exports = {
     },
 
     crypt: {
-      name: 'The Sunken Crypt', region: 'Underground', x: 84, y: 21,
+      name: 'The Sunken Crypt', region: 'Underground', x: 84, y: 21, effect: 'drips',
       desc: 'Water drips through the vaulted ceiling. Stone monks lie on top of their tombs with their hands folded. Some of the tombs are open, and empty.',
       actions: [
         { label: 'Explore the burial halls', scene: 'crypt-hall', when: '!crypt-cleared' },
@@ -123,7 +128,7 @@ module.exports = {
     },
 
     abbey: {
-      name: 'Saint Aldric\'s Abbey', region: 'Abbey', x: 55, y: 8,
+      name: 'Saint Aldric\'s Abbey', region: 'Abbey', x: 55, y: 8, effect: 'embers',
       desc: 'The abbey courtyard lies knee-deep in ash. Above it looms the bell tower, its great bronze bell hanging silent. Somewhere inside, voices chant in a language that crackles like fire.',
       descIf: [{ when: 'bell-rung', text: 'Clean wind blows through the courtyard now. The Cinder Bell hums faintly, even at rest.' }],
       actions: [

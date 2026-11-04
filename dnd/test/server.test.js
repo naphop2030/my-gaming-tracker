@@ -118,6 +118,16 @@ test('a short session', async () => {
   assert.strictEqual(s.initiative.list[0].name, 'Goblin');
   assert.strictEqual(s.initiative.current, s.initiative.list[0].id);
 
+  // Portraits: only a player in the game can set their own picture.
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+  let r = await fetch(`${BASE}/api/rooms/${code}/portrait`, { method: 'POST', headers: { 'Content-Type': 'image/png', 'X-Player-Id': 'stranger-0000000000000' }, body: png });
+  assert.strictEqual(r.status, 403);
+  r = await fetch(`${BASE}/api/rooms/${code}/portrait`, { method: 'POST', headers: { 'Content-Type': 'image/png', 'X-Player-Id': 'Pat-browser-id-0000000' }, body: png });
+  assert.strictEqual(r.status, 200);
+  s = await until(dm, (st) => st.portraits && st.portraits[pl.you.id]);
+  r = await fetch(BASE + s.portraits[pl.you.id]);
+  assert.strictEqual(r.headers.get('content-type'), 'image/png');
+
   dm.ws.close();
   pl.ws.close();
 });
