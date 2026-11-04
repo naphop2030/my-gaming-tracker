@@ -6,12 +6,21 @@
   "private": true,
   "scripts": {
     "start": "node server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "build:three": "node scripts/vendor-three.js",
+    "build:models": "node scripts/build-models.mjs",
+    "build:icons": "node scripts/import-icons.js"
   },
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
     "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@gltf-transform/core": "^4.5.1",
+    "@gltf-transform/extensions": "^4.5.1",
+    "@gltf-transform/functions": "^4.5.1",
+    "three": "^0.187.0"
   }
 }

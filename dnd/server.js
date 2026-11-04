@@ -3,6 +3,7 @@
 // Serves the web app, keeps game state in memory (saved to data/rooms.json),
 // and syncs every connected browser over WebSockets.
 const http = require('http');
+const zlib = require('zlib');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -470,7 +471,7 @@ function readBody(req, limit) {
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png',
-  '.jpg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.ico': 'image/x-icon', '.md': 'text/markdown; charset=utf-8',
+  '.jpg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.ico': 'image/x-icon', '.md': 'text/markdown; charset=utf-8', '.glb': 'model/gltf-binary', '.mjs': 'text/javascript; charset=utf-8', '.json': 'application/json',
 };
 
 function json(res, status, body) {
@@ -478,15 +479,37 @@ function json(res, status, body) {
   res.end(JSON.stringify(body));
 }
 
-function serveFile(res, file, cache) {
-  fs.readFile(file, (err, data) => {
-    if (err) return json(res, 404, { error: 'Not found' });
-    res.writeHead(200, {
+// Static files are gzipped once and kept in memory (three.js and the 3D models shrink a lot).
+const GZIP_TYPES = /\.(js|mjs|css|html|svg|json|md|glb)$/i;
+const gzCache = new Map(); // file -> { mtime, data }
+function serveFile(res, file, cache, req) {
+  fs.stat(file, (statErr, st) => {
+    if (statErr || !st.isFile()) return json(res, 404, { error: 'Not found' });
+    const headers = {
       'Content-Type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream',
       'Cache-Control': cache,
       'X-Content-Type-Options': 'nosniff',
+      Vary: 'Accept-Encoding',
+    };
+    const wantsGzip = req && /\bgzip\b/.test(req.headers['accept-encoding'] || '') && GZIP_TYPES.test(file);
+    const cached = gzCache.get(file);
+    if (wantsGzip && cached && cached.mtime === st.mtimeMs) {
+      res.writeHead(200, { ...headers, 'Content-Encoding': 'gzip' });
+      return res.end(cached.data);
+    }
+    fs.readFile(file, (err, data) => {
+      if (err) return json(res, 404, { error: 'Not found' });
+      if (wantsGzip) {
+        return zlib.gzip(data, { level: 7 }, (zErr, gz) => {
+          if (zErr) { res.writeHead(200, headers); return res.end(data); }
+          gzCache.set(file, { mtime: st.mtimeMs, data: gz });
+          res.writeHead(200, { ...headers, 'Content-Encoding': 'gzip' });
+          res.end(gz);
+        });
+      }
+      res.writeHead(200, headers);
+      res.end(data);
     });
-    res.end(data);
   });
 }
 
@@ -559,18 +582,18 @@ const server = http.createServer(async (req, res) => {
     m = p.match(/^\/portraits\/(.+)$/);
     if (m) {
       if (!MAP_FILE_RE.test(m[1])) return json(res, 404, { error: 'Not found' });
-      return serveFile(res, path.join(PORTRAIT_DIR, m[1]), 'public, max-age=31536000, immutable');
+      return serveFile(res, path.join(PORTRAIT_DIR, m[1]), 'public, max-age=31536000, immutable', req);
     }
 
     m = p.match(/^\/maps\/(.+)$/);
     if (m) {
       if (!MAP_FILE_RE.test(m[1])) return json(res, 404, { error: 'Not found' });
-      return serveFile(res, path.join(MAP_DIR, m[1]), 'public, max-age=31536000, immutable');
+      return serveFile(res, path.join(MAP_DIR, m[1]), 'public, max-age=31536000, immutable', req);
     }
 
     const file = path.normalize(path.join(PUBLIC_DIR, p === '/' ? 'index.html' : decodeURIComponent(p)));
     if (!file.startsWith(PUBLIC_DIR + path.sep)) return json(res, 404, { error: 'Not found' });
-    return serveFile(res, file, 'no-cache');
+    return serveFile(res, file, 'no-cache', req);
   } catch (e) {
     if (!res.headersSent) json(res, e.status || 500, { error: e.status ? e.message : 'Server error' });
     if (!e.status) console.error(e);

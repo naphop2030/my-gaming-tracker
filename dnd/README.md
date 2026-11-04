@@ -28,6 +28,19 @@ The included adventure is **The Ashen Vale**: 8 locations, a main quest, 3 side 
 
 Icons are by Lorc, Delapouite, Skoll and other artists at game-icons.net (CC BY 3.0); see [`public/art/CREDITS.md`](public/art/CREDITS.md). The scenes were drawn in code for this project.
 
+### 3D models
+
+With a reasonably modern browser, adventure mode is in 3D:
+
+- **3D world board:** the World map tab is a tabletop of hex tiles with a little diorama for each place: the village, the forest, the bandit tower, the marsh, the crypt and the abbey. Your party's miniature walks the stepping-stone roads between them. Unexplored land stays dark until you learn about it. Drag to turn the board, scroll or pinch to zoom, and click a glowing place to travel.
+- **3D battles:** fights play out on a little arena dressed like the place you're in. Heroes swing swords, cast fire bolts and magic missiles, and heal. Monsters bite, slash and fall, all in step with the dice. Click a monster to target it.
+- **3D dice:** every skill check rolls a real d20 that lands on your number.
+- **Hero creation:** shows a turning model of the class you pick.
+
+The **3D** button in the scene banner switches back to the 2D look, for slower computers. If a browser can't do 3D, the game uses 2D automatically.
+
+The models are free CC0 (public domain) assets by **KayKit** (Kay Lousberg) and **Quaternius**, displayed with **three.js**. Everything is included in the project, so the game works offline. See [`public/art/CREDITS.md`](public/art/CREDITS.md). To swap or add models, see `scripts/build-models.mjs`.
+
 ### Writing your own adventure
 
 Adventures are plain JavaScript data files in `adventures/`. Copy `adventures/ashen-vale.js`; the comment at the top explains the format: locations, paths, scenes, choices, checks, outcomes, monsters and items. Then add your file to the list at the top of `adventure.js`, and it shows up in the lobby. Run `npm test` afterwards, and add a playthrough test like the ones in `test/adventure.test.js`.
@@ -121,6 +134,9 @@ npm test   # dice tests, a multiplayer session against the real server, full adv
 | `adventures/` | Adventure content (story, map, monsters) |
 | `dice.js` | Dice expression parser |
 | `public/fx.js` | Weather particles, combat effects, dice animation and sounds |
+| `public/3d/` | 3D world board, battle stage, dice and hero preview (three.js) |
+| `public/models/` | Optimized 3D models (built by `scripts/build-models.mjs`) |
+| `public/vendor/three/` | three.js, copied by `scripts/vendor-three.js` |
 | `public/art/` | Location scenes (`scenes.js`), icons and credits |
 | `scripts/import-icons.js` | Copies icons from a game-icons.net clone |
 | `public/` | The web app (plain HTML/CSS/JS, no build step) |

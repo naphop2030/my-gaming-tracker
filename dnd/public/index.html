@@ -6,6 +6,7 @@
 <title>Tabletop</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="style.css">
+<script type="importmap">{ "imports": { "three": "/vendor/three/three.module.js", "three/addons/": "/vendor/three/addons/" } }</script>
 </head>
 <body>
 
@@ -63,6 +64,7 @@
         <header class="adv-head">
           <div class="adv-scene" id="advScene"></div>
           <canvas class="adv-weather" id="advWeather" aria-hidden="true"></canvas>
+          <div class="adv-stage3d" id="advStage3d" hidden></div>
           <div class="adv-plaque">
             <span class="ico place-ico" id="advPlaceIcon" aria-hidden="true"></span>
             <div>
@@ -74,6 +76,7 @@
             <span class="ico gold" style="--i:url(/art/icons/gold.svg)" aria-hidden="true"></span> <b id="advGold">0</b> gold ·
             <span class="ico potion-ico" style="--i:url(/art/icons/potion.svg)" aria-hidden="true"></span> <span id="advPotions">0 potions</span>
             <button id="advMute" class="adv-mute" type="button" title="Sound effects on/off"></button>
+            <button id="adv3d" class="adv-mute" type="button" title="3D models on/off" hidden></button>
           </div>
           <nav class="adv-tabs">
             <button data-adv-tab="story" class="active">Story</button>
@@ -87,7 +90,12 @@
             <div id="advNow" class="adv-now"></div>
           </div>
           <div data-adv-view="world" class="adv-world" hidden>
-            <div class="board-frame"><div id="advBoard" class="board" role="group" aria-label="World map"></div></div>
+            <div class="board3d-wrap" id="advBoard3dWrap" hidden>
+              <div id="advBoard3d" class="board3d" aria-label="3D world map"></div>
+              <div id="advBoardLabels" class="board3d-labels"></div>
+              <div class="board3d-hint">Drag to turn the board · scroll or pinch to zoom · right-drag to slide · click a glowing place to travel</div>
+            </div>
+            <div class="board-frame" id="advBoard2d"><div id="advBoard" class="board" role="group" aria-label="World map"></div></div>
             <p class="hint">Click a glowing place next to you to travel there. Dashed roads are locked for now.</p>
           </div>
           <div data-adv-view="journal" class="adv-journal" hidden></div>
@@ -255,5 +263,6 @@
 <script src="fx.js"></script>
 <script src="app.js"></script>
 <script src="adventure.js"></script>
+<script type="module" src="3d/main.js"></script>
 </body>
 </html>

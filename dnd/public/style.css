@@ -692,3 +692,37 @@ body { overflow-x: hidden; }
   .pin-name { font-size: 10px; padding: 0 4px; }
   .board-frame { padding: 8px; }
 }
+
+/* ---------- 3D ---------- */
+.view3d { display: block; width: 100%; height: 100%; touch-action: none; }
+.adv-stage3d { position: absolute; inset: 0; z-index: 0; }
+.adv-stage3d .view3d { cursor: pointer; }
+#adventure.in-battle .adv-head { min-height: 360px; }
+#adventure.in-battle .adv-scene, #adventure.in-battle .adv-weather { display: none; }
+#adventure.in-battle .adv-head::after { background: linear-gradient(180deg, rgba(10, 8, 6, 0) 70%, rgba(18, 14, 11, .9) 100%); }
+#adventure.in-battle .adv-plaque { pointer-events: none; transform: scale(.8); transform-origin: left bottom; opacity: .9; }
+.board3d-wrap { position: relative; width: 100%; flex: 1; min-height: 420px; border-radius: 12px; overflow: hidden; border: 3px solid #5a3d24; box-shadow: 0 12px 30px rgba(0, 0, 0, .5); background: #2a2018; }
+.board3d { position: absolute; inset: 0; }
+.board3d .view3d { cursor: grab; }
+.board3d-labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.pin3d {
+  position: absolute; left: 0; top: 0; pointer-events: auto; display: flex; flex-direction: column; align-items: center;
+  font: 700 13px var(--serif); color: var(--ink); background: rgba(234, 219, 185, .92); border: 1px solid #b48a4a; border-radius: 6px;
+  padding: 2px 8px; white-space: nowrap; cursor: default; box-shadow: 0 3px 8px rgba(0, 0, 0, .35);
+}
+.pin3d small { font: 700 9px var(--sans); letter-spacing: 1px; text-transform: uppercase; color: #fff; background: var(--accent); padding: 0 5px; border-radius: 3px; margin-top: 2px; }
+.pin3d.unknown { font-style: italic; color: var(--ink-soft); opacity: .85; }
+.pin3d.go { cursor: pointer; border-color: var(--gold); box-shadow: 0 0 0 3px rgba(216, 169, 72, .45), 0 3px 8px rgba(0, 0, 0, .35); }
+.pin3d.go:hover { background: #f6eacb; }
+.pin3d.here { border-color: var(--accent); }
+.pin3d.locked { cursor: help; }
+.board3d-hint { position: absolute; left: 10px; bottom: 8px; right: 10px; font-size: 12px; color: #e8dcc6; text-shadow: 0 1px 3px #000; pointer-events: none; }
+.adv-world { padding: 10px; }
+.hero-preview { width: 150px; height: 190px; border-radius: 12px; background: radial-gradient(circle at 50% 40%, #4a3a2b, #1d1611 75%); border: 2px solid #5a4430; overflow: hidden; }
+.fx-dice .die.die3d { width: 150px; height: 150px; clip-path: none; background: none !important; animation: none; }
+.dice3d { width: 150px; height: 150px; display: block; }
+@media (max-width: 860px) {
+  #adventure.in-battle .adv-head { min-height: 260px; }
+  .board3d-wrap { min-height: 60vh; }
+  .pin3d { font-size: 11px; padding: 1px 6px; }
+}

@@ -12,6 +12,18 @@
   const CLASS_COLORS = { fighter: '#b8443a', rogue: '#4f7d4a', wizard: '#4366a8', cleric: '#b8913a' };
   const ACTION_ICONS = { 'second-wind': 'second-wind', 'fire-bolt': 'fire-bolt', 'magic-missile': 'magic-missile', 'sacred-flame': 'sacred-flame', 'cure-wounds': 'cure-wounds', potion: 'potion', defend: 'defend', flee: 'flee' };
 
+  // 3D is on by default when the browser supports it; the 3D button turns it off.
+  const pref = { get() { try { return localStorage.getItem('dnd.3d') !== '0'; } catch { return true; } }, set(v) { try { localStorage.setItem('dnd.3d', v ? '1' : '0'); } catch { /* ignore */ } } };
+  const use3d = () => !!window.Board3D && pref.get();
+  const btn3d = $('#adv3d');
+  const paint3d = () => {
+    btn3d.hidden = !window.Board3D;
+    btn3d.replaceChildren(icon('d20'), use3d() ? '3D on' : '3D off');
+    btn3d.setAttribute('aria-pressed', String(use3d()));
+  };
+  btn3d.onclick = () => { pref.set(!pref.get()); paint3d(); nowKey = ''; render(); };
+  window.addEventListener('three-ready', () => { paint3d(); nowKey = ''; render(); });
+
   let tab = 'story';
   let targetId = null; // chosen monster
   let pendingAlly = null; // action waiting for an ally to be picked
@@ -87,6 +99,7 @@
   };
   muteBtn.onclick = () => { FX.setMuted(!FX.muted); paintMute(); };
   paintMute();
+  paint3d();
 
   // ---------- main render ----------
   function render() {
@@ -103,6 +116,7 @@
     const potions = (A.inventory.find((i) => i.id === 'potion') || { n: 0 }).n;
     $('#advPotions').textContent = `${potions} potion${potions === 1 ? '' : 's'}`;
     renderScene(A);
+    renderStage(A);
     renderParty(A);
     renderLog(A);
     renderNow(A);
@@ -134,6 +148,24 @@
     if (!weather) weather = new FX.Weather($('#advWeather'));
     const indoors = A.location.effect === 'drips';
     weather.set(indoors ? ['drips'] : [A.ambience, A.location.effect]);
+  }
+
+  // ---------- 3D battle stage (replaces the banner during fights) ----------
+  function renderStage(A) {
+    const on = !!(A.combat && use3d() && A.party.length);
+    const box = $('#advStage3d');
+    box.hidden = !on;
+    $('#adventure').classList.toggle('in-battle', on);
+    if (!on) return;
+    const living = A.combat.monsters.filter((m) => m.hp > 0);
+    if (!living.some((m) => m.id === targetId)) targetId = living[0] ? living[0].id : null;
+    window.Stage3D.update(box, A, TT.S.initiative, targetId, (id) => {
+      const m = A.combat.monsters.find((x) => x.id === id);
+      if (!m || m.hp <= 0) return;
+      targetId = id;
+      nowKey = '';
+      render();
+    });
   }
 
   // ---------- effects ----------
@@ -269,7 +301,8 @@
     card.append(el('p', 'hint', TT.seatCount() > 1 ? `Making a hero for ${TT.seatName()}.` : 'Pick a name, a class and (if you like) a picture.'));
     const row = el('div', 'create-row');
     const pic = el('div', 'create-pic');
-    pic.append(portrait(TT.me.id, createCls, 'lg'));
+    const preview3d = use3d() ? el('div', 'hero-preview') : null;
+    pic.append(preview3d || portrait(TT.me.id, createCls, 'lg'));
     const up = el('label', 'btn small', 'Upload picture');
     const file = el('input');
     file.type = 'file';
@@ -295,12 +328,14 @@
       const b = button([icon(c.id, 'cls-ico'), el('b', '', c.name), el('span', 'cls-desc', c.desc), el('span', 'cls-stats', `HP ${c.hp} · AC ${c.ac} · ${c.weapon}`)], `cls-card${c.id === createCls ? ' active' : ''}`, () => {
         createCls = c.id;
         $$('.cls-card', grid).forEach((x) => x.classList.toggle('active', x === b));
-        if (!(TT.S.portraits && TT.S.portraits[TT.me.id])) pic.replaceChild(portrait(TT.me.id, createCls, 'lg'), pic.firstChild);
+        if (preview3d) window.Preview3D.show(preview3d, createCls);
+        else if (!(TT.S.portraits && TT.S.portraits[TT.me.id])) pic.replaceChild(portrait(TT.me.id, createCls, 'lg'), pic.firstChild);
       });
       b.style.setProperty('--c', CLASS_COLORS[c.id]);
       grid.append(b);
     }
     card.append(grid);
+    if (preview3d) requestAnimationFrame(() => window.Preview3D.show(preview3d, createCls));
     card.append(button('Join the party', 'btn primary', () => {
       TT.send({ t: 'adv:create', name: name.value.trim() || TT.seatName(), cls: createCls });
       draftName = '';
@@ -462,6 +497,23 @@
 
   // ---------- world map ----------
   function renderWorld(A) {
+    const three = use3d();
+    $('#advBoard3dWrap').hidden = !three;
+    $('#advBoard2d').hidden = three;
+    if (three) {
+      window.Board3D.update($('#advBoard3d'), $('#advBoardLabels'), A, {
+        meId: TT.me.id,
+        pick(id) {
+          const exit = A.exits.find((x) => x.to === id);
+          if (A.location.id === id) return TT.toast(`You are in ${A.location.name}.`);
+          if (A.combat) return TT.toast('Finish the fight first!', true);
+          if (!exit) return TT.toast('You can\'t get there from here. Follow the roads.', true);
+          if (!exit.ok) return TT.toast(exit.locked, true);
+          TT.send({ t: 'adv:travel', to: id });
+        },
+      });
+      return;
+    }
     const board = $('#advBoard');
     const nodes = Object.fromEntries(A.world.nodes.map((n) => [n.id, n]));
     const reachable = new Map(A.exits.map((x) => [x.to, x]));

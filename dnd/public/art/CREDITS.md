@@ -18,3 +18,16 @@ Icons from [game-icons.net](https://game-icons.net), licensed under [CC BY 3.0](
 ## Location scenes
 
 The location backgrounds in `public/art/scenes.js` were drawn for this project as code (SVG) and are free to use with the game.
+
+## 3D models
+
+All 3D models are **CC0 (public domain)**: free for any use, no credit required. Credit is given here with thanks.
+
+- **KayKit by Kay Lousberg** ([kaylousberg.com](https://kaylousberg.com)): Adventurers and Skeletons character packs (knight, barbarian, rogue, mage, skeleton warrior), Medieval Hexagon pack (board tiles, buildings, trees, mountains, clouds), Halloween Bits (crypt, graves, candles, dead trees, lanterns). From the official [KayKit GitHub](https://github.com/KayKit-Game-Assets).
+- **Quaternius** ([quaternius.com](https://quaternius.com)): Wolf (Ultimate Animated Animals), Spider (Easy Enemy Pack), Orc (Ultimate Monsters).
+
+`scripts/build-models.mjs` explains how the files in `public/models/` were made from these packs: unused animations removed, and the meshes compressed.
+
+## Code libraries
+
+- [three.js](https://threejs.org) (MIT license), copied into `public/vendor/three/`.

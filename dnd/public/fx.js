@@ -289,9 +289,16 @@
     box.append(cap, die, res);
     overlay().append(box);
     play('dice');
-    const spins = reduced ? 1 : 10;
-    for (let i = 0; i < spins; i++) { num.textContent = String(1 + Math.floor(Math.random() * 20)); await wait(55 + i * 8); }
-    num.textContent = String(fx.nat !== undefined ? fx.nat : fx.total);
+    let use3d = false;
+    try { use3d = !!window.Dice3D && localStorage.getItem('dnd.3d') !== '0' && fx.nat !== undefined; } catch { use3d = !!window.Dice3D && fx.nat !== undefined; }
+    if (use3d) {
+      die.classList.add('die3d');
+      await window.Dice3D.roll(die, fx.nat, reduced ? 200 : 1000);
+    } else {
+      const spins = reduced ? 1 : 10;
+      for (let i = 0; i < spins; i++) { num.textContent = String(1 + Math.floor(Math.random() * 20)); await wait(55 + i * 8); }
+      num.textContent = String(fx.nat !== undefined ? fx.nat : fx.total);
+    }
     die.classList.add('landed', fx.ok ? 'ok' : 'bad');
     if (fx.nat === 20) die.classList.add('nat20');
     if (fx.nat === 1) die.classList.add('nat1');
@@ -305,6 +312,7 @@
 
   // Plays one effect; resolves when the next one may start.
   async function run(fx, ctx) {
+    try { if (window.FX3D) window.FX3D.onFx(fx); } catch { /* 3D is optional */ }
     const foe = (id) => `[data-foe="${id}"]`;
     const hero = (id) => `[data-hero="${id}"]`;
     switch (fx.t) {
