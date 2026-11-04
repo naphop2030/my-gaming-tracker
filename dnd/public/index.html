@@ -45,9 +45,15 @@
     <button id="codeBtn" class="code" title="Copy invite link">Code <b id="roomCode"></b> <span class="copy">Copy invite</span></button>
     <div id="players" class="players"></div>
     <span id="conn" class="conn"></span>
+    <button id="addSeat" class="btn ghost small" title="Add another player who shares this screen">+ Player on this device</button>
     <button id="renameBtn" class="btn ghost small" title="Change your name">✎ <span id="myName"></span></button>
     <button id="leaveBtn" class="btn ghost small">Leave</button>
   </header>
+  <div id="seatBar" class="seat-bar" hidden>
+    <span class="seat-label">Playing as</span>
+    <div id="seatList" class="seat-list"></div>
+    <label class="check"><input type="checkbox" id="followTurns"> Switch on each initiative turn</label>
+  </div>
 
   <div class="stage">
     <div class="map-wrap">

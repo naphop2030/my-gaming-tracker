@@ -97,71 +97,217 @@
   $('#lobbyCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') joinFromLobby(); });
   $('#lobbyName').addEventListener('keydown', (e) => { if (e.key === 'Enter') (roomCode ? joinFromLobby() : $('#lobbyCode').focus()); });
 
-  // ---------- connection ----------
-  let ws = null;
-  let S = null; // latest state from server
+  // ---------- seats & connections ----------
+  // A "seat" is one player using this browser. Several seats let a group share
+  // one screen (hot-seat play): every seat keeps its own connection, so the
+  // server still treats them as separate players, and the screen shows the
+  // point of view of whichever seat is active.
+  let S = null; // latest state for the active seat
   let me = { id: null, isDM: false };
-  let retry = 0;
+  let seats = []; // [{ pid, name }]; seats[0] is this browser's own id
+  const conns = new Map(); // pid -> { ws, state, you, retry }
+  let activePid = null;
   let leaving = false;
+  let followTurns = store.get('dnd.follow') !== '0';
+  let lastTurn = null;
+
+  const seatsKey = () => `dnd.seats.${roomCode}`;
+  const activeSeat = () => seats.find((x) => x.pid === activePid) || seats[0];
+  const activeConn = () => conns.get(activePid);
+
+  function loadSeats() {
+    let list = [];
+    try { list = JSON.parse(store.get(seatsKey()) || '[]'); } catch { list = []; }
+    if (!Array.isArray(list)) list = [];
+    list = list.filter((x) => x && typeof x.pid === 'string' && x.pid.length >= 16 && x.name && x.pid !== pid);
+    return [{ pid, name: myName }, ...list];
+  }
+  function saveSeats() { store.set(seatsKey(), JSON.stringify(seats.slice(1))); }
 
   function enter(code) {
     roomCode = code;
     leaving = false;
+    lastTurn = null;
     history.replaceState(null, '', `?room=${code}`);
     $('#lobby').hidden = true;
     $('#table').hidden = false;
     $('#roomCode').textContent = code;
-    $('#myName').textContent = myName;
+    seats = loadSeats();
+    activePid = store.get(`dnd.active.${code}`);
+    if (!seats.some((x) => x.pid === activePid)) activePid = pid;
+    applyIdentity();
+    renderSeats();
     resizeCanvas();
-    connect();
+    for (const seat of seats) connect(seat);
   }
 
-  function connect() {
-    ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
+  function connect(seat) {
+    const c = conns.get(seat.pid) || { retry: 0, state: null, you: null };
+    conns.set(seat.pid, c);
+    const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
+    c.ws = ws;
     ws.onopen = () => {
-      retry = 0;
-      $('#conn').textContent = '';
-      send({ t: 'join', room: roomCode, pid, name: myName, dmKey: store.get(`dnd.dm.${roomCode}`) });
+      c.retry = 0;
+      updateConnStatus();
+      ws.send(JSON.stringify({
+        t: 'join', room: roomCode, pid: seat.pid, name: seat.name,
+        // Only this browser's own seat can be the DM.
+        dmKey: seat.pid === pid ? store.get(`dnd.dm.${roomCode}`) : undefined,
+      }));
     };
     ws.onmessage = (e) => {
       const m = JSON.parse(e.data);
+      const active = seat.pid === activePid;
       if (m.t === 'welcome') {
-        me = m.you;
-        document.body.classList.toggle('is-dm', me.isDM);
-        $$('[data-dm-only]').forEach((x) => { x.hidden = !me.isDM; });
-        $('#rollInit').hidden = me.isDM;
+        c.you = m.you;
+        if (active) applyIdentity();
+        renderSeats();
       } else if (m.t === 'state') {
+        c.state = m.state;
+        if (!active) return;
         const first = !S;
         S = m.state;
         render();
         if (first) fitView();
+        followTurn();
       } else if (m.t === 'error') {
-        toast(m.text, true);
-        render(); // undo optimistic changes
+        if (active) { toast(m.text, true); render(); } // render undoes optimistic changes
       } else if (m.t === 'notice') {
-        addLocalMessage(m.text);
+        if (active) addLocalMessage(m.text);
       } else if (m.t === 'ping') {
-        addPing(m);
+        if (active) addPing(m);
       } else if (m.t === 'fatal') {
-        leave();
-        lobbyError(m.text);
+        if (seat.pid === pid) { leave(); lobbyError(m.text); } else { toast(`${seat.name}: ${m.text}`, true); removeSeat(seat.pid); }
       }
     };
     ws.onclose = () => {
-      if (leaving) return;
-      $('#conn').textContent = 'Reconnecting…';
-      setTimeout(connect, Math.min(8000, 500 * 2 ** retry++));
+      if (leaving || conns.get(seat.pid) !== c || c.ws !== ws) return;
+      updateConnStatus();
+      setTimeout(() => {
+        if (!leaving && conns.get(seat.pid) === c && c.ws === ws) connect(seat);
+      }, Math.min(8000, 500 * 2 ** c.retry++));
     };
   }
 
+  function updateConnStatus() {
+    const down = [...conns.values()].some((c) => c.ws && c.ws.readyState !== WebSocket.OPEN);
+    $('#conn').textContent = down ? 'Reconnecting…' : '';
+  }
+
   function send(msg) {
-    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
+    const c = activeConn();
+    if (c && c.ws && c.ws.readyState === WebSocket.OPEN) c.ws.send(JSON.stringify(msg));
     else toast('Not connected right now. Trying again…', true);
   }
 
+  function applyIdentity() {
+    const c = activeConn();
+    me = (c && c.you) || { id: null, isDM: false };
+    document.body.classList.toggle('is-dm', me.isDM);
+    $$('[data-dm-only]').forEach((x) => { x.hidden = !me.isDM; });
+    $('#rollInit').hidden = me.isDM;
+    $('#myName').textContent = activeSeat().name;
+  }
+
+  function switchSeat(target, announce = true) {
+    if (target === activePid || !conns.has(target)) return;
+    if (sheetDirty) pushSheet(); // save what the last player was typing first
+    activePid = target;
+    store.set(`dnd.active.${roomCode}`, target);
+    applyIdentity();
+    selectedId = null;
+    sheetTarget = null;
+    drag = null;
+    pan = null;
+    renderedChatKey = '';
+    const c = activeConn();
+    if (c.state) S = c.state;
+    render();
+    renderSeats();
+    if (announce) toast(`Now playing as ${activeSeat().name}${me.isDM ? ' (DM)' : ''}`);
+  }
+
+  // When initiative moves on, hand the screen to whoever's turn it is.
+  function followTurn() {
+    const cur = S && S.initiative.current;
+    if (cur === lastTurn) return;
+    lastTurn = cur;
+    if (!followTurns || seats.length < 2 || !cur) return;
+    const entry = S.initiative.list.find((x) => x.id === cur);
+    if (!entry) return;
+    const target = entry.owner
+      ? seats.find((x) => conns.get(x.pid)?.you?.id === entry.owner)
+      : seats.find((x) => conns.get(x.pid)?.you?.isDM); // monsters → the DM
+    if (target) switchSeat(target.pid);
+  }
+
+  function addSeat() {
+    if (seats.length >= 8) return toast('Up to 8 players can share one device.', true);
+    const n = (window.prompt('Name of the player joining on this device:') || '').trim().slice(0, 30);
+    if (!n) return;
+    const seat = { pid: randomId(), name: n };
+    seats.push(seat);
+    saveSeats();
+    connect(seat);
+    switchSeat(seat.pid);
+  }
+
+  function removeSeat(target) {
+    if (target === pid) return;
+    const seat = seats.find((x) => x.pid === target);
+    if (!seat) return;
+    const c = conns.get(target);
+    conns.delete(target);
+    if (c && c.ws) c.ws.close();
+    seats = seats.filter((x) => x.pid !== target);
+    saveSeats();
+    if (activePid === target) switchSeat(pid, false);
+    renderSeats();
+    updateConnStatus();
+  }
+
+  function renderSeats() {
+    const bar = $('#seatBar');
+    bar.hidden = seats.length < 2;
+    const list = $('#seatList');
+    list.replaceChildren(...seats.map((seat) => {
+      const you = conns.get(seat.pid)?.you;
+      const wrap = el('span', `seat${seat.pid === activePid ? ' active' : ''}`);
+      const b = el('button', '', seat.name);
+      b.title = `Switch to ${seat.name}'s view`;
+      b.onclick = () => switchSeat(seat.pid);
+      if (you?.isDM) b.append(el('span', 'role', 'DM'));
+      wrap.append(b);
+      if (seat.pid !== pid) {
+        const x = el('button', 'x', '×');
+        x.title = `Remove ${seat.name} from this device`;
+        x.onclick = () => { if (confirm(`Remove ${seat.name} from this device? Their character stays in the game.`)) removeSeat(seat.pid); };
+        wrap.append(x);
+      }
+      return wrap;
+    }));
+    $('#followTurns').checked = followTurns;
+  }
+
+  $('#addSeat').onclick = addSeat;
+  $('#followTurns').onchange = (e) => {
+    followTurns = e.target.checked;
+    store.set('dnd.follow', followTurns ? '1' : '0');
+    if (followTurns) { lastTurn = null; followTurn(); }
+  };
+
+  // Number keys 1-8 switch seats (when not typing).
+  document.addEventListener('keydown', (e) => {
+    if (seats.length < 2 || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+    const n = Number(e.key);
+    if (n >= 1 && n <= seats.length) switchSeat(seats[n - 1].pid);
+  });
+
   function leave() {
     leaving = true;
-    if (ws) ws.close();
+    for (const c of conns.values()) if (c.ws) c.ws.close();
+    conns.clear();
     S = null;
     $('#table').hidden = true;
     $('#lobby').hidden = false;
@@ -171,11 +317,13 @@
   $('#leaveBtn').onclick = () => { leave(); lobbyError(''); };
 
   $('#renameBtn').onclick = () => {
-    const n = (window.prompt('Your name:', myName) || '').trim().slice(0, 30);
+    const seat = activeSeat();
+    const n = (window.prompt('Name:', seat.name) || '').trim().slice(0, 30);
     if (!n) return;
-    myName = n;
-    store.set('dnd.name', n);
+    seat.name = n;
+    if (seat.pid === pid) { myName = n; store.set('dnd.name', n); } else saveSeats();
     $('#myName').textContent = n;
+    renderSeats();
     send({ t: 'rename', name: n });
   };
 
@@ -549,7 +697,7 @@
     const mySheet = S.sheets[me.id];
     send({
       t: 'token:add',
-      label: f.label.value || (!me.isDM && mySheet?.name) || (me.isDM ? 'Monster' : myName),
+      label: f.label.value || (!me.isDM && mySheet?.name) || (me.isDM ? 'Monster' : activeSeat().name),
       color: f.color.value,
       size,
       owner: me.isDM ? f.owner.value || null : me.id,

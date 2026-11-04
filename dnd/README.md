@@ -10,6 +10,7 @@ A small virtual tabletop for playing D&D with your friends. One person runs the 
 - **Character sheets**: ability scores with auto modifiers, one-click checks and saves, HP with a Damage/Heal button, inventory and notes. Everyone can view the party's sheets but can only edit their own.
 - **Initiative tracker**: players roll with their DEX + bonus. The DM adds monsters (secret rolls) and steps through turns and rounds.
 - **Pings**: double-click the map to point at something.
+- **One-screen mode**: several players can share one browser and take turns, with the view switching automatically on each initiative turn.
 - Games are saved to disk, so you can stop the server and pick up next session.
 
 ## Running it
@@ -34,6 +35,17 @@ The server prints the addresses to open:
 3. **Players:** open the link, enter a name and click **Join**.
 
 To run the game from another device (for example, a tablet at the table), open the **Map** tab and use **Copy DM link**. Keep that link private, because anyone who has it is the DM.
+
+## Playing on one screen (hot-seat)
+
+Everyone can also play around a single laptop or TV, with no other devices needed:
+
+1. The DM creates the game as usual.
+2. For each player at the table, click **+ Player on this device** and type their name.
+3. A **Playing as** bar appears. Click a name (or press **1–8**) to switch to that person's view: their sheet, their tokens and their secret rolls. In a player's view, the DM's hidden tokens and secret rolls are not shown.
+4. Leave **Switch on each initiative turn** ticked. When the DM clicks **Next turn**, the screen switches to whoever is up. On a monster's turn it switches back to the DM.
+
+Each player on the screen still counts as a real player, so you can mix both ways of playing. For example, two friends can share a laptop while others join from their own devices. Your list of players on the device is remembered for the next session.
 
 ## Letting friends connect
 

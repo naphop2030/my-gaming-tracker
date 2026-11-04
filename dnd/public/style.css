@@ -145,6 +145,25 @@ textarea { resize: vertical; }
 }
 body { overflow-x: hidden; }
 
+/* ---------- shared-screen seats ---------- */
+.seat-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 6px 12px;
+  background: var(--bg2); border-bottom: 1px solid var(--line);
+}
+.seat-bar .check { margin: 0 0 0 auto; }
+.seat-label { font-size: 12px; color: var(--faint); text-transform: uppercase; letter-spacing: .6px; font-weight: 700; }
+.seat-list { display: flex; gap: 6px; flex-wrap: wrap; }
+.seat { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel2); }
+.seat button { background: none; border: 0; padding: 6px 11px; cursor: pointer; font-weight: 600; font-size: 13px; display: inline-flex; gap: 6px; align-items: center; }
+.seat button.x { padding: 6px 8px; color: var(--faint); border-left: 1px solid var(--line); }
+.seat button.x:hover { color: var(--bad); }
+.seat .role { color: var(--gold); font-size: 11px; font-weight: 700; }
+.seat.active { border-color: var(--accent); background: var(--accent); }
+.seat.active button { color: #fff; }
+.seat.active .role { color: #fff; }
+.seat.active button.x { color: rgba(255,255,255,.75); border-left-color: rgba(255,255,255,.3); }
+@media (max-width: 860px) { .seat-bar .check { margin-left: 0; } }
+
 /* ---------- chat ---------- */
 .chat-log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px; min-height: 120px; }
 .msg { background: var(--panel2); border-radius: 8px; padding: 7px 10px; word-wrap: break-word; white-space: pre-wrap; }
