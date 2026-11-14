@@ -84,15 +84,26 @@
   }
   $('#createBtn').onclick = () => createGame({ mode: 'tabletop' });
 
-  // Adventures the server knows about.
+  // Title-screen menu: adventures the server knows about, then Join and Free Tabletop.
+  const lobbyMenu = $('#lobbyMenu');
+  const showHelp = (item) => { $('#lobbyHelp').textContent = (item && item.dataset.help) || ''; };
+  lobbyMenu.addEventListener('menuselect', (e) => showHelp(e.detail));
   fetch('/api/adventures').then((r) => r.json()).then((list) => {
     $('#advList').replaceChildren(...list.map((a) => {
-      const b = el('button', 'adv-pick');
-      b.append(el('span', 'adv-pick-title', `Play an adventure: ${a.title}`), el('span', 'adv-pick-blurb', a.blurb));
+      const b = el('button', 'mi', `New Adventure: ${a.title}`);
+      b.type = 'button';
+      b.dataset.help = `${a.blurb} The game is the Dungeon Master, so everyone plays a hero.`;
       b.onclick = () => createGame({ mode: 'adventure', adventure: a.id });
       return b;
     }));
+    window.Menus.init(lobbyMenu, false);
+    showHelp(lobbyMenu.querySelector('.mi.sel'));
   }).catch(() => {});
+  $('#joinOpen').onclick = () => {
+    $('#joinRow').hidden = false;
+    $('#lobbyCode').focus();
+  };
+  if (roomCode) $('#joinRow').hidden = false;
 
   async function joinFromLobby() {
     if (!readName()) return;
@@ -1182,6 +1193,17 @@
     localSeatFor: (publicId) => seats.find((x) => conns.get(x.pid)?.you?.id === publicId)?.pid || null,
     switchSeat: (p) => switchSeat(p),
     uploadPortrait: (f) => uploadPortrait(f),
+    // for the adventure menu's Players and Settings pages
+    get roomCode() { return roomCode; },
+    get myName() { return activeSeat().name; },
+    seats: () => seats.map((x) => ({ pid: x.pid, name: x.name, active: x.pid === activePid, main: x.pid === pid, id: conns.get(x.pid)?.you?.id || null, isDM: !!conns.get(x.pid)?.you?.isDM })),
+    addSeat: () => addSeat(),
+    removeSeat: (p) => removeSeat(p),
+    copyInvite: () => copy(`${location.origin}/?room=${roomCode}`, 'Invite link copied. Send it to your friends!'),
+    rename: () => $('#renameBtn').click(),
+    leave: () => { leave(); lobbyError(''); },
+    get followTurns() { return followTurns; },
+    setFollowTurns(v) { followTurns = !!v; store.set('dnd.follow', followTurns ? '1' : '0'); $('#followTurns').checked = followTurns; if (followTurns) { lastTurn = null; followTurn(); } },
   };
 
   // Auto-join when opened with ?room=CODE and we already know our name.

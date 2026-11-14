@@ -1,5 +1,7 @@
-// Adventure mode UI: scene banner, story log, choices, world map, journal, party and combat.
-// All game rules run on the server; this file only draws the state, plays effects, and sends choices.
+// Adventure mode UI, laid out like a classic RPG window menu:
+//   scene (picture or 3D) on top · story window · party window · command window
+//   plus a main menu (Esc) with Items, Status, Quests, Map, Chat, Players, Settings.
+// All game rules run on the server; this file only draws the state and sends choices.
 (() => {
   'use strict';
   const TT = window.TT;
@@ -8,59 +10,77 @@
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const el = TT.el;
   const signed = (n) => (n >= 0 ? `+${n}` : `${n}`);
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch { /* ignore */ } },
+  };
 
   const CLASS_COLORS = { fighter: '#b8443a', rogue: '#4f7d4a', wizard: '#4366a8', cleric: '#b8913a' };
   const ACTION_ICONS = { 'second-wind': 'second-wind', 'fire-bolt': 'fire-bolt', 'magic-missile': 'magic-missile', 'sacred-flame': 'sacred-flame', 'cure-wounds': 'cure-wounds', potion: 'potion', defend: 'defend', flee: 'flee' };
+  const ABIL = [['str', 'STR'], ['dex', 'DEX'], ['con', 'CON'], ['int', 'INT'], ['wis', 'WIS'], ['cha', 'CHA']];
 
-  // 3D is on by default when the browser supports it; the 3D button turns it off.
-  const pref = { get() { try { return localStorage.getItem('dnd.3d') !== '0'; } catch { return true; } }, set(v) { try { localStorage.setItem('dnd.3d', v ? '1' : '0'); } catch { /* ignore */ } } };
-  const use3d = () => !!window.Board3D && pref.get();
-  const btn3d = $('#adv3d');
-  const paint3d = () => {
-    btn3d.hidden = !window.Board3D;
-    btn3d.replaceChildren(icon('d20'), use3d() ? '3D on' : '3D off');
-    btn3d.setAttribute('aria-pressed', String(use3d()));
-  };
-  btn3d.onclick = () => { pref.set(!pref.get()); paint3d(); nowKey = ''; render(); };
-  window.addEventListener('three-ready', () => { paint3d(); nowKey = ''; render(); });
+  // ---------- settings ----------
+  const use3d = () => !!window.Board3D && store.get('dnd.3d') !== '0';
+  window.addEventListener('three-ready', () => { nowKey = ''; render(); });
 
-  let tab = 'story';
-  let targetId = null; // chosen monster
-  let pendingAlly = null; // action waiting for an ally to be picked
+  // ---------- state ----------
+  let targetId = null;
   let dismissedEnd = null;
   let createCls = 'fighter';
   let draftName = '';
   let lastLogId = '';
   let nowKey = '';
+  let baseKey = '';
+  let stack = []; // command submenus: [{ type, action? }]
   let sceneKey = '';
   let weather = null;
   const seenLog = new Set();
   let primedRoom = null;
+  let menuOpen = false;
+  let menuPage = 'items';
+  let statusHero = null;
+  let modalClosed = false;
+  let modalKey = '';
+  let lastChatSeen = store.get('dnd.chatSeen') || '';
 
   // ---------- small builders ----------
-  function button(label, cls, onClick) {
-    const b = el('button', cls || 'btn');
-    if (typeof label === 'string') b.textContent = label;
-    else b.append(...label.filter(Boolean));
-    b.type = 'button';
-    if (onClick) b.onclick = onClick;
-    return b;
-  }
   function icon(name, cls = '') {
     const i = el('span', `ico ${cls}`);
     i.style.setProperty('--i', `url(/art/icons/${name}.svg)`);
     i.setAttribute('aria-hidden', 'true');
     return i;
   }
-  function hpBar(hp, max) {
+  function button(label, cls, onClick) {
+    const b = el('button', cls || 'btn');
+    b.type = 'button';
+    if (typeof label === 'string') b.textContent = label;
+    else b.append(...label.filter(Boolean));
+    if (onClick) b.onclick = onClick;
+    return b;
+  }
+  // A menu choice: pointer cursor, label, optional icon / right-hand tag / small second line.
+  function mi(label, { onClick, icon: ico, tag, tagCls, sub, disabled, cls = '', data } = {}) {
+    const b = el('button', `mi ${cls}`);
+    b.type = 'button';
+    const main = el('span', 'mi-main');
+    if (ico) main.append(icon(ico, 'mi-ico'));
+    main.append(el('span', 'mi-label', label));
+    if (tag) main.append(el('span', `mi-tag ${tagCls || ''}`, tag));
+    b.append(main);
+    if (sub) b.append(el('span', 'mi-sub', sub));
+    if (disabled) b.disabled = true;
+    if (onClick) b.onclick = onClick;
+    if (data) Object.assign(b.dataset, data);
+    return b;
+  }
+  function hpBar(hp, max, cls = '') {
     const pct = max ? Math.max(0, Math.min(100, (hp / max) * 100)) : 0;
-    const bar = el('div', 'hpbar');
+    const bar = el('div', `bar ${cls}`);
     const fill = el('div', `fill ${pct > 50 ? 'ok' : pct > 25 ? 'mid' : 'low'}`);
     fill.style.width = `${pct}%`;
     bar.append(fill);
     return bar;
   }
-  // A hero's picture: their uploaded portrait, or a medallion with their class icon.
   function portrait(heroId, cls, size = '') {
     const url = TT.S.portraits && TT.S.portraits[heroId];
     const box = el('div', `portrait ${size}`);
@@ -80,53 +100,39 @@
     const init = TT.S.initiative;
     return init.list.find((e) => e.id === init.current) || null;
   };
-
-  // ---------- tabs & sound toggle ----------
-  $$('[data-adv-tab]').forEach((b) => {
-    b.onclick = () => {
-      tab = b.dataset.advTab;
-      $$('[data-adv-tab]').forEach((x) => x.classList.toggle('active', x === b));
-      $$('[data-adv-view]').forEach((v) => { v.hidden = v.dataset.advView !== tab; });
-      nowKey = '';
-      render();
-      if (tab === 'story') scrollLog(true);
-    };
-  });
-  const muteBtn = $('#advMute');
-  const paintMute = () => {
-    muteBtn.replaceChildren(icon(FX.muted ? 'skull' : 'bell'), FX.muted ? 'Sound off' : 'Sound on');
-    muteBtn.setAttribute('aria-pressed', String(!FX.muted));
-  };
-  muteBtn.onclick = () => { FX.setMuted(!FX.muted); paintMute(); };
-  paintMute();
-  paint3d();
+  const potionsOf = (A) => (A.inventory.find((i) => i.id === 'potion') || { n: 0 }).n;
 
   // ---------- main render ----------
   function render() {
     const S = TT.S;
     const on = !!(S && S.mode === 'adventure' && S.adventure);
     $('#adventure').hidden = !on;
-    if (!on) return;
+    placeChat(on);
+    if (!on) { menuOpen = false; return; }
     const A = S.adventure;
     $('#advTitle').textContent = A.title;
     $('#advRegion').textContent = A.location.region;
     $('#advPlace').textContent = A.location.name;
     $('#advPlaceIcon').style.setProperty('--i', `url(/art/icons/${A.location.icon}.svg)`);
     $('#advGold').textContent = A.gold;
-    const potions = (A.inventory.find((i) => i.id === 'potion') || { n: 0 }).n;
-    $('#advPotions').textContent = `${potions} potion${potions === 1 ? '' : 's'}`;
+    $('#advPotions').textContent = potionsOf(A);
     renderScene(A);
     renderStage(A);
+    renderEnemies(A);
     renderParty(A);
     renderLog(A);
     renderNow(A);
-    if (tab === 'world') renderWorld(A);
-    if (tab === 'journal') renderJournal(A);
+    renderModal(A);
+    renderChatBadge();
+    if (menuOpen) renderMenu(A);
     playNewEffects(S, A);
   }
   window.renderAdventure = render;
 
-  // ---------- scene banner & weather ----------
+  // Reconnecting notice (the top bar is hidden in adventure mode).
+  new MutationObserver(() => { $('#advConn').textContent = $('#conn').textContent; }).observe($('#conn'), { childList: true, characterData: true, subtree: true });
+
+  // ---------- scene & weather ----------
   function renderScene(A) {
     const mood = A.ambience === 'clear' ? 'clear' : 'ash';
     const key = `${A.location.id}:${mood}:${A.location.image || ''}`;
@@ -146,84 +152,96 @@
       requestAnimationFrame(() => box.classList.add('show'));
     }
     if (!weather) weather = new FX.Weather($('#advWeather'));
-    const indoors = A.location.effect === 'drips';
-    weather.set(indoors ? ['drips'] : [A.ambience, A.location.effect]);
+    weather.set(A.location.effect === 'drips' ? ['drips'] : [A.ambience, A.location.effect]);
   }
 
-  // ---------- 3D battle stage (replaces the banner during fights) ----------
+  // 3D battle stage replaces the picture during fights.
   function renderStage(A) {
     const on = !!(A.combat && use3d() && A.party.length);
     const box = $('#advStage3d');
     box.hidden = !on;
-    $('#adventure').classList.toggle('in-battle', on);
-    if (!on) return;
-    const living = A.combat.monsters.filter((m) => m.hp > 0);
-    if (!living.some((m) => m.id === targetId)) targetId = living[0] ? living[0].id : null;
-    window.Stage3D.update(box, A, TT.S.initiative, targetId, (id) => {
-      const m = A.combat.monsters.find((x) => x.id === id);
-      if (!m || m.hp <= 0) return;
-      targetId = id;
-      nowKey = '';
-      render();
-    });
-  }
-
-  // ---------- effects ----------
-  function playNewEffects(S, A) {
-    if (primedRoom !== S.code) { seenLog.clear(); primedRoom = S.code; for (const e of A.log) seenLog.add(e.id); return; }
-    const fresh = [];
-    for (const e of A.log) {
-      if (seenLog.has(e.id)) continue;
-      seenLog.add(e.id);
-      if (e.fx) fresh.push(e.fx);
+    $('#adventure').classList.toggle('in-battle', !!A.combat);
+    if (A.combat) {
+      const living = A.combat.monsters.filter((m) => m.hp > 0);
+      if (!living.some((m) => m.id === targetId)) targetId = living[0] ? living[0].id : null;
     }
-    if (!fresh.length) return;
-    FX.enqueue(fresh, {
-      meId: TT.me.id,
-      nameOf: (id) => (A.party.find((p) => p.id === id) || { name: 'A hero' }).name,
-      levelOf: (id) => (A.party.find((p) => p.id === id) || { level: '' }).level,
-    });
+    if (!on) return;
+    window.Stage3D.update(box, A, TT.S.initiative, targetId, (id) => chooseTarget(A, id));
   }
 
-  // ---------- party ----------
+  // Clicking an enemy (in 3D or in the Enemies window).
+  function chooseTarget(A, id) {
+    const m = A.combat && A.combat.monsters.find((x) => x.id === id);
+    if (!m || m.hp <= 0) return;
+    const top = stack[stack.length - 1];
+    if (top && top.type === 'target') { act(top.action, { target: id }); return; }
+    targetId = id;
+    nowKey = '';
+    render();
+  }
+
+  function act(action, extra = {}) {
+    stack = [];
+    TT.send({ t: 'adv:act', action, target: targetId, ...extra });
+  }
+
+  // ---------- enemies window ----------
+  function renderEnemies(A) {
+    const box = $('#advEnemies');
+    box.hidden = !A.combat;
+    if (!A.combat) return;
+    const rows = A.combat.monsters.map((m) => {
+      const r = el('button', `foe-row${m.hp <= 0 ? ' dead' : ''}${m.id === targetId && m.hp > 0 ? ' target' : ''}${m.boss ? ' boss' : ''}`);
+      r.type = 'button';
+      r.dataset.foe = m.id;
+      const name = el('span', 'foe-name');
+      name.append(icon(m.icon, 'foe-ico'), el('span', '', m.name));
+      r.append(name, hpBar(m.hp, m.maxHp), el('span', 'foe-hp', m.hp > 0 ? `${m.hp}/${m.maxHp}` : 'Defeated'));
+      r.title = m.hp > 0 ? `${m.name} · AC ${m.ac} · click to target` : m.name;
+      r.onclick = () => chooseTarget(A, m.id);
+      return r;
+    });
+    box.replaceChildren(el('div', 'win-title', `Enemies · Round ${TT.S.initiative.round}`), ...rows);
+  }
+
+  // ---------- party window ----------
   function renderParty(A) {
     const cur = currentEntry();
     const box = $('#advParty');
     if (!A.party.length) {
-      box.replaceChildren(el('p', 'hint', 'No heroes yet. Create one to start playing.'));
+      box.replaceChildren(el('div', 'win-title', 'Party'), el('p', 'hint', 'No heroes yet.'));
       return;
     }
-    box.replaceChildren(...A.party.map((h) => {
-      const card = el('div', 'hero');
-      card.dataset.hero = h.id;
-      if (h.id === TT.me.id) card.classList.add('me');
-      if (cur && cur.owner === h.id) card.classList.add('turn');
-      if (h.hp <= 0) card.classList.add('down');
-      if (h.defending) card.classList.add('defending');
-      const info = el('div', 'hero-info');
-      const top = el('div', 'hero-top');
-      top.append(el('b', '', h.name), el('span', 'hero-cls', `Lv ${h.level} ${h.clsName}`));
-      const stats = el('div', 'hero-stats');
-      stats.append(icon('defend', 'sm'), ` ${h.ac}  `, icon('second-wind', 'sm'), ` ${h.hp}/${h.maxHp}`);
-      if (h.cls === 'wizard' || h.cls === 'cleric') stats.append('  ', icon('magic-missile', 'sm'), ` ${h.uses.slots}`);
-      info.append(top, hpBar(h.hp, h.maxHp), stats, el('div', 'hero-xp', h.nextXp ? `XP ${h.xp} / ${h.nextXp}` : `XP ${h.xp} (max level)`));
-      card.append(portrait(h.id, h.cls), info);
+    const rows = A.party.map((h) => {
+      const r = el('div', 'pm');
+      r.dataset.hero = h.id;
+      if (h.id === TT.me.id) r.classList.add('me');
+      if (cur && cur.owner === h.id) r.classList.add('turn');
+      if (h.hp <= 0) r.classList.add('down');
+      if (h.defending) r.classList.add('defending');
+      const name = el('span', 'pm-name');
+      name.append(el('b', '', h.name), el('small', '', `Lv${h.level} ${h.clsName}`));
+      const hp = el('span', 'pm-stat');
+      hp.append(el('small', '', 'HP'), hpBar(h.hp, h.maxHp), el('span', 'pm-num', `${h.hp}/${h.maxHp}`));
+      r.append(el('span', 'pm-cursor', '▶'), portrait(h.id, h.cls, 'xs'), name, hp);
+      if (h.cls === 'wizard' || h.cls === 'cleric') {
+        const sp = el('span', 'pm-stat sp');
+        sp.append(el('small', '', 'SP'), el('span', 'pm-num', String(h.uses.slots)));
+        sp.title = 'Spell slots left (refilled at the inn)';
+        r.append(sp);
+      }
       const seat = h.id !== TT.me.id && TT.seatCount() > 1 ? TT.localSeatFor(h.id) : null;
       if (seat) {
-        card.classList.add('local');
-        card.title = `Switch to ${h.name}`;
-        card.onclick = () => TT.switchSeat(seat);
+        r.classList.add('local');
+        r.title = `Switch to ${h.name}`;
+        r.onclick = () => TT.switchSeat(seat);
       }
-      return card;
-    }));
+      return r;
+    });
+    box.replaceChildren(el('div', 'win-title', 'Party'), ...rows);
   }
 
-  // ---------- story log ----------
-  function scrollLog(force) {
-    const log = $('#advLog');
-    if (force || log.scrollHeight - log.scrollTop - log.clientHeight < 160) log.scrollTop = log.scrollHeight;
-  }
-
+  // ---------- story window ----------
   function renderLog(A) {
     const last = A.log[A.log.length - 1];
     const key = `${A.log.length}:${last ? last.id : ''}`;
@@ -246,64 +264,251 @@
       if (e.title === 'Victory' || e.title === 'Combat') d.classList.add('big');
       return d;
     }));
-    requestAnimationFrame(() => scrollLog(true));
+    const lastEl = log.lastElementChild;
+    if (lastEl) lastEl.classList.add('fresh');
+    requestAnimationFrame(() => { log.scrollTop = log.scrollHeight; });
   }
 
-  // ---------- "what now" panel ----------
+  // ---------- command window ----------
   function renderNow(A) {
     const me = TT.me;
     const mine = A.party.find((p) => p.id === me.id);
     const cur = currentEntry();
-    const turnId = `${me.id}:${cur ? cur.id : ''}`;
-    if (turnId !== renderNow.lastTurn) { pendingAlly = null; renderNow.lastTurn = turnId; }
-    const key = JSON.stringify([me.id, A.ended && A.ended.at, dismissedEnd, !!mine, A.combat, A.scene, A.actions, A.exits, A.myActions,
-      cur && cur.id, targetId, pendingAlly, A.party.map((p) => [p.id, p.hp]), A.gold, A.inventory, TT.seatCount(), TT.S.portraits]);
+    const base = JSON.stringify([me.id, A.location.id, A.scene && A.scene.id, !!A.combat, cur && cur.id, !!mine]);
+    if (base !== baseKey) { baseKey = base; stack = []; }
+    const key = JSON.stringify([base, stack, A.ended && A.ended.at, dismissedEnd, A.combat, A.scene, A.actions, A.exits, A.myActions,
+      targetId, A.party.map((p) => [p.id, p.hp, p.uses]), A.gold, A.inventory, TT.seatCount(), modalClosed]);
     if (key === nowKey) return;
     nowKey = key;
-    const box = $('#advNow');
-    const focused = document.activeElement && box.contains(document.activeElement) ? document.activeElement.id : null;
 
-    let parts;
-    if (A.ended && dismissedEnd !== A.ended.at) parts = endingPanel(A);
-    else if (!mine) parts = createPanel(A);
-    else if (A.combat) parts = combatPanel(A, mine, cur);
-    else if (A.scene) parts = scenePanel(A, mine);
-    else parts = locationPanel(A, mine);
-    box.classList.toggle('in-combat', !!(A.combat && mine));
+    let page;
+    if (A.ended && dismissedEnd !== A.ended.at) page = endingCmd(A);
+    else if (!mine) page = createCmd();
+    else if (A.combat) page = combatCmd(A, mine, cur);
+    else if (A.scene) page = sceneCmd(A, mine);
+    else page = exploreCmd(A, mine);
+
+    const box = $('#advNow');
+    const menu = el('div', 'menu');
+    menu.dataset.prio = '1';
+    menu.append(...page.items);
+    if (stack.length) menu.append(mi('Back', { cls: 'back', onClick: back }));
+    const parts = [el('div', 'win-title', page.title)];
+    if (page.who) parts.push(page.who);
+    if (page.text) parts.push(el('p', 'cmd-text', page.text));
+    parts.push(menu);
+    parts.push(el('div', 'cmd-keys', stack.length ? '↑↓ choose · Enter confirm · Esc back' : '↑↓ choose · Enter confirm · Esc menu'));
+    const prevIndex = box.querySelector('.menu') && box.querySelector('.menu').dataset.selIndex;
     box.replaceChildren(...parts);
-    if (focused && document.getElementById(focused)) document.getElementById(focused).focus();
+    if (prevIndex && page.keepCursor) menu.dataset.selIndex = prevIndex;
+    window.Menus.init(menu, !!page.keepCursor);
+    // Hovering a target in the list highlights it in the scene too.
+    menu.addEventListener('menuselect', (e) => {
+      const id = e.detail && e.detail.dataset.foe;
+      if (id && id !== targetId) { targetId = id; renderEnemies(A); renderStage(A); }
+    });
   }
 
-  function actingAs(mine) {
-    const d = el('div', 'acting');
-    d.append(portrait(mine.id, mine.cls, 'xs'), 'Acting: ', el('b', '', mine.name), ` (${mine.clsName})`);
-    if (TT.seatCount() > 1) d.append(el('span', 'hint', ' · switch players at the top to let someone else try'));
+  function back() { stack.pop(); nowKey = ''; render(); }
+  function push(entry) { stack.push(entry); nowKey = ''; render(); }
+
+  function whoLine(mine) {
+    const d = el('div', 'cmd-who');
+    d.append(portrait(mine.id, mine.cls, 'xs'), el('b', '', mine.name), el('span', '', ` · Lv${mine.level} ${mine.clsName}`));
+    if (TT.seatCount() > 1) d.title = 'Click a hero in the Party window to let someone else choose';
     return d;
   }
 
-  function endingPanel(A) {
-    const card = el('div', 'panel-card ending');
-    card.append(icon('bell', 'xl gold'), el('h3', '', A.ended.title), el('p', '', 'You finished the main quest! The Vale is still open: keep exploring, finish side quests, or start again.'));
-    const row = el('div', 'row wrap');
-    row.append(button('Keep exploring', 'btn primary', () => { dismissedEnd = A.ended.at; nowKey = ''; render(); }));
+  function endingCmd(A) {
+    const items = [mi('Keep exploring', { icon: 'map', onClick: () => { dismissedEnd = A.ended.at; nowKey = ''; render(); } })];
     if (TT.me.isDM) {
-      row.append(button('Start the adventure over', 'btn ghost', () => {
-        if (confirm('Start the adventure over from the beginning? Heroes keep their names and classes but go back to level 1.')) TT.send({ t: 'adv:reset' });
+      items.push(mi('Start the adventure over', {
+        icon: 'journal',
+        onClick: () => { if (confirm('Start the adventure over? Heroes keep their names and classes but go back to level 1.')) TT.send({ t: 'adv:reset' }); },
       }));
     }
-    card.append(row);
-    return [card];
+    return { title: A.ended.title, text: 'You finished the main quest! The Vale is still open: explore, finish side quests, or start again.', items };
   }
 
-  function createPanel(A) {
-    const card = el('div', 'panel-card create');
-    card.append(el('h3', '', 'Create your hero'));
-    card.append(el('p', 'hint', TT.seatCount() > 1 ? `Making a hero for ${TT.seatName()}.` : 'Pick a name, a class and (if you like) a picture.'));
-    const row = el('div', 'create-row');
+  function createCmd() {
+    return {
+      title: 'Welcome, adventurer',
+      text: 'Create your hero to join the party.',
+      items: [mi('Create my hero', { icon: 'fighter', onClick: () => { modalClosed = false; modalKey = ''; render(); } })],
+    };
+  }
+
+  function sceneCmd(A, mine) {
+    const items = A.scene.choices.map((c) => {
+      const sub = [];
+      if (c.check) sub.push(`${c.check.label} check · need ${c.check.dc}${c.check.bonus !== null ? ` · your bonus ${signed(c.check.bonus)}` : ''}`);
+      return mi(c.label, {
+        icon: c.check ? 'd20' : null,
+        tag: c.cost ? `${c.cost} G` : null,
+        sub: sub.join(''),
+        disabled: c.cost > A.gold,
+        onClick: () => TT.send({ t: 'adv:choose', index: c.index }),
+      });
+    });
+    if (!A.scene.noLeave) items.push(mi('Leave', { cls: 'back', onClick: () => TT.send({ t: 'adv:choose', index: -1 }) }));
+    return { title: A.scene.title, who: whoLine(mine), items };
+  }
+
+  function exploreCmd(A, mine) {
+    const top = stack[stack.length - 1];
+    if (top && top.type === 'travel') {
+      return {
+        title: 'Travel to…',
+        who: whoLine(mine),
+        items: A.exits.map((x) => {
+          const node = A.world.nodes.find((n) => n.id === x.to);
+          return mi(x.name, {
+            icon: node ? node.icon : 'map',
+            tag: x.ok ? (x.visited ? null : 'NEW') : 'LOCKED',
+            tagCls: x.ok ? 'new' : 'lock',
+            sub: x.ok ? (node && node.region) || '' : x.locked,
+            onClick: () => (x.ok ? (stack = [], TT.send({ t: 'adv:travel', to: x.to })) : TT.toast(x.locked, true)),
+          });
+        }),
+      };
+    }
+    if (top && top.type === 'potion') {
+      return {
+        title: `Healing potion (${potionsOf(A)} left)`,
+        who: whoLine(mine),
+        items: A.party.map((p) => mi(p.name, {
+          tag: `${p.hp}/${p.maxHp}`,
+          disabled: p.hp >= p.maxHp,
+          sub: p.hp >= p.maxHp ? 'Already at full health' : 'Restores 2d4+2 HP',
+          onClick: () => { stack = []; TT.send({ t: 'adv:use', item: 'potion', ally: p.id }); },
+        })),
+      };
+    }
+    const items = A.actions.map((a) => {
+      const ico = a.kind === 'inn' ? 'inn' : a.kind === 'camp' ? 'camp' : a.kind === 'buy' ? (a.item || 'potion') : 'journal';
+      return mi(a.label, { icon: ico, tag: a.cost ? `${a.cost} G` : null, disabled: a.cost > A.gold, onClick: () => TT.send({ t: 'adv:do', kind: a.kind, id: a.id, item: a.item }) });
+    });
+    items.push(mi('Travel', { icon: 'map', tag: '▸', sub: `${A.exits.length} road${A.exits.length === 1 ? '' : 's'} from here`, onClick: () => push({ type: 'travel' }) }));
+    const hurt = A.party.some((p) => p.hp < p.maxHp);
+    if (potionsOf(A) && hurt) items.push(mi('Use a potion', { icon: 'potion', tag: '▸', onClick: () => push({ type: 'potion' }) }));
+    return { title: 'What will you do?', who: whoLine(mine), items, keepCursor: true };
+  }
+
+  function combatCmd(A, mine, cur) {
+    const myTurn = cur && cur.owner === TT.me.id;
+    if (!myTurn) {
+      const who = cur ? cur.name : '…';
+      const seat = cur && TT.localSeatFor(cur.owner);
+      return {
+        title: `Battle · Round ${TT.S.initiative.round}`,
+        text: `Waiting for ${who} to act…`,
+        items: seat && TT.seatCount() > 1 ? [mi(`Switch to ${who}`, { onClick: () => TT.switchSeat(seat) })] : [],
+      };
+    }
+    const acts = A.myActions;
+    const find = (id) => acts.find((a) => a.id === id);
+    const living = A.combat.monsters.filter((m) => m.hp > 0);
+    const top = stack[stack.length - 1];
+
+    if (top && top.type === 'target') {
+      const a = find(top.action);
+      return {
+        title: `${a ? a.label : 'Attack'}: choose a target`,
+        who: whoLine(mine),
+        items: living.map((m) => mi(m.name, {
+          icon: m.icon, tag: `${m.hp}/${m.maxHp}`, sub: `AC ${m.ac}`, data: { foe: m.id },
+          onClick: () => act(top.action, { target: m.id }),
+        })),
+      };
+    }
+    if (top && top.type === 'ally') {
+      const a = find(top.action);
+      return {
+        title: `${a ? a.label : 'Heal'}: who?`,
+        who: whoLine(mine),
+        items: A.party.map((p) => mi(p.name, {
+          tag: `${p.hp}/${p.maxHp}`, sub: p.hp <= 0 ? 'Down! This will revive them' : '',
+          onClick: () => act(top.action, { ally: p.id }),
+        })),
+      };
+    }
+    const choose = (a) => {
+      if (a.target === 'enemy') return () => push({ type: 'target', action: a.id });
+      if (a.target === 'ally') return () => push({ type: 'ally', action: a.id });
+      return () => act(a.id);
+    };
+    const usesTag = (a) => (a.uses === undefined ? null : `×${a.uses}`);
+    if (top && top.type === 'skills') {
+      const skills = acts.filter((a) => !['attack', 'potion', 'defend', 'flee'].includes(a.id));
+      return {
+        title: 'Skills',
+        who: whoLine(mine),
+        items: skills.map((a) => mi(a.label, { icon: ACTION_ICONS[a.id] || 'magic-missile', tag: usesTag(a), sub: a.desc, disabled: a.uses === 0, onClick: choose(a) })),
+      };
+    }
+    if (top && top.type === 'items') {
+      const p = find('potion');
+      return {
+        title: 'Items',
+        who: whoLine(mine),
+        items: [mi('Healing potion', { icon: 'potion', tag: `×${p ? p.uses : 0}`, sub: p ? p.desc : '', disabled: !p || !p.uses, onClick: p ? choose(p) : null })],
+      };
+    }
+    const attack = find('attack');
+    const items = [mi('Attack', { icon: mine.cls === 'rogue' ? 'backstab' : 'attack', sub: attack ? attack.desc : '', onClick: choose(attack) })];
+    const skills = acts.filter((a) => !['attack', 'potion', 'defend', 'flee'].includes(a.id));
+    if (skills.length) items.push(mi('Skills', { icon: ACTION_ICONS[skills[0].id] || 'magic-missile', tag: '▸', sub: skills.map((a) => a.label).join(', '), onClick: () => push({ type: 'skills' }) }));
+    const potion = find('potion');
+    items.push(mi('Items', { icon: 'potion', tag: '▸', sub: `${potion ? potion.uses : 0} healing potion${potion && potion.uses === 1 ? '' : 's'}`, onClick: () => push({ type: 'items' }) }));
+    const defend = find('defend');
+    if (defend) items.push(mi('Defend', { icon: 'defend', sub: defend.desc, onClick: () => act('defend') }));
+    const flee = find('flee');
+    if (flee) items.push(mi('Run away', { icon: 'flee', sub: flee.desc, onClick: () => act('flee') }));
+    return { title: `${mine.name}'s turn!`, who: whoLine(mine), items };
+  }
+
+  // ---------- hero creation window ----------
+  function renderModal(A) {
+    const mine = A.party.find((p) => p.id === TT.me.id);
+    const modal = $('#advModal');
+    const show = !mine && !modalClosed && !menuOpen;
+    modal.hidden = !show;
+    if (!show) { modalKey = ''; return; }
+    const key = `${TT.me.id}:${(TT.S.portraits || {})[TT.me.id] || ''}`;
+    if (key === modalKey) return;
+    modalKey = key;
+
+    const win = el('div', 'win modal-win create');
+    win.append(el('div', 'win-title', 'Create your hero'));
+    const grid = el('div', 'create-grid');
+    const menu = el('div', 'menu cls-menu');
+    menu.dataset.prio = '3';
+    const info = el('div', 'create-info');
     const pic = el('div', 'create-pic');
     const preview3d = use3d() ? el('div', 'hero-preview') : null;
+
+    const showClass = (cls) => {
+      createCls = cls;
+      const c = A.classes.find((x) => x.id === cls);
+      const desc = el('div', 'cls-detail');
+      desc.append(el('h3', '', c.name), el('p', '', c.desc));
+      const stats = el('div', 'cls-stats');
+      for (const [k, v] of [['HP', c.hp], ['AC', c.ac], ['Weapon', c.weapon]]) { const s = el('span'); s.append(el('small', '', k), el('b', '', String(v))); stats.append(s); }
+      desc.append(stats);
+      info.firstChild ? info.replaceChild(desc, info.firstChild) : info.prepend(desc);
+      if (preview3d) window.Preview3D.show(preview3d, cls);
+      else if (!(TT.S.portraits && TT.S.portraits[TT.me.id])) pic.replaceChild(portrait(TT.me.id, cls, 'lg'), pic.firstChild);
+    };
+    for (const c of A.classes) {
+      const b = mi(c.name, { icon: c.id, onClick: () => join() });
+      b.dataset.cls = c.id;
+      b.style.setProperty('--c', CLASS_COLORS[c.id]);
+      menu.append(b);
+    }
+    menu.addEventListener('menuselect', (e) => { if (e.detail && e.detail.dataset.cls) showClass(e.detail.dataset.cls); });
+
     pic.append(preview3d || portrait(TT.me.id, createCls, 'lg'));
-    const up = el('label', 'btn small', 'Upload picture');
+    const up = el('label', 'btn small', TT.S.portraits && TT.S.portraits[TT.me.id] ? 'Change picture' : 'Add a picture');
     const file = el('input');
     file.type = 'file';
     file.accept = 'image/*';
@@ -311,209 +516,172 @@
     file.onchange = () => { if (file.files[0]) TT.uploadPortrait(file.files[0]); file.value = ''; };
     up.append(file);
     pic.append(up);
+
     const name = el('input');
     name.id = 'heroName';
     name.maxLength = 30;
     name.placeholder = 'Hero name';
     name.value = draftName || TT.seatName();
     name.oninput = () => { draftName = name.value; };
+    name.onkeydown = (e) => { if (e.key === 'Enter') join(); };
     const label = el('label', 'field', 'Hero name');
     label.append(name);
-    const right = el('div', 'grow');
-    right.append(label);
-    row.append(pic, right);
-    card.append(row);
-    const grid = el('div', 'cls-grid');
-    for (const c of A.classes) {
-      const b = button([icon(c.id, 'cls-ico'), el('b', '', c.name), el('span', 'cls-desc', c.desc), el('span', 'cls-stats', `HP ${c.hp} · AC ${c.ac} · ${c.weapon}`)], `cls-card${c.id === createCls ? ' active' : ''}`, () => {
-        createCls = c.id;
-        $$('.cls-card', grid).forEach((x) => x.classList.toggle('active', x === b));
-        if (preview3d) window.Preview3D.show(preview3d, createCls);
-        else if (!(TT.S.portraits && TT.S.portraits[TT.me.id])) pic.replaceChild(portrait(TT.me.id, createCls, 'lg'), pic.firstChild);
-      });
-      b.style.setProperty('--c', CLASS_COLORS[c.id]);
-      grid.append(b);
-    }
-    card.append(grid);
-    if (preview3d) requestAnimationFrame(() => window.Preview3D.show(preview3d, createCls));
-    card.append(button('Join the party', 'btn primary', () => {
+    const join = () => {
       TT.send({ t: 'adv:create', name: name.value.trim() || TT.seatName(), cls: createCls });
       draftName = '';
-    }));
-    return [card];
+    };
+    const row = el('div', 'row wrap');
+    row.append(button('Join the party', 'btn primary', join), button('Later', 'btn ghost', () => { modalClosed = true; nowKey = ''; render(); }));
+    info.append(el('div'), label, row);
+    grid.append(menu, pic, info);
+    win.append(grid);
+    if (TT.seatCount() > 1) win.append(el('p', 'hint', `Making a hero for ${TT.seatName()}.`));
+    win.append(el('p', 'cmd-keys', '↑↓ choose a class · type a name · Enter to join'));
+    modal.replaceChildren(win);
+    const idx = Math.max(0, A.classes.findIndex((c) => c.id === createCls));
+    menu.dataset.selIndex = String(idx);
+    window.Menus.init(menu);
+    showClass(createCls);
   }
 
-  function choiceButton(label, tags, onClick, disabled, ico) {
-    const b = button([ico ? icon(ico, 'choice-ico') : null, el('span', 'choice-label', label), ...tags.map((t) => el('span', `tag${t.cls ? ` ${t.cls}` : ''}`, t.text))], 'choice', onClick);
-    if (disabled) b.disabled = true;
-    return b;
+  // ---------- main menu ----------
+  const PAGES = [
+    ['items', 'Items', 'potion'], ['status', 'Status', 'fighter'], ['quests', 'Quests', 'journal'], ['map', 'Map', 'map'],
+    ['chat', 'Chat', 'inn'], ['players', 'Players', 'level'], ['settings', 'Settings', 'd20'], ['help', 'How to play', 'choir-note'],
+  ];
+
+  function openMenu(page) {
+    if (page) menuPage = page;
+    menuOpen = true;
+    $('#advMenu').hidden = false;
+    if (weather) weather.pause(true); // hidden behind the menu anyway
+    FX.sfx('open');
+    render();
   }
-
-  function scenePanel(A, mine) {
-    const out = [];
-    const head = el('div', 'now-head');
-    head.append(el('h3', '', A.scene.title), actingAs(mine));
-    out.push(head);
-    const list = el('div', 'choices');
-    for (const c of A.scene.choices) {
-      const tags = [];
-      if (c.check) tags.push({ text: `${c.check.label} DC ${c.check.dc}${c.check.bonus !== null ? ` · you ${signed(c.check.bonus)}` : ''}`, cls: 'check' });
-      if (c.cost) tags.push({ text: `${c.cost} gold`, cls: 'cost' });
-      list.append(choiceButton(c.label, tags, () => TT.send({ t: 'adv:choose', index: c.index }), c.cost > A.gold, c.check ? 'd20' : null));
-    }
-    if (!A.scene.noLeave) list.append(button('Leave', 'btn ghost small leave', () => TT.send({ t: 'adv:choose', index: -1 })));
-    out.push(list);
-    return out;
+  function closeMenu() {
+    menuOpen = false;
+    $('#advMenu').hidden = true;
+    if (weather) weather.pause(false);
+    $('#advMenuList').dataset.built = '';
+    nowKey = '';
+    render();
   }
+  $('#advMenuBtn').onclick = () => (menuOpen ? closeMenu() : openMenu());
+  $('#advMenu').addEventListener('click', (e) => { if (e.target.id === 'advMenu') closeMenu(); });
 
-  function locationPanel(A, mine) {
-    const out = [];
-    const head = el('div', 'now-head');
-    head.append(el('h3', '', 'What do you do?'), actingAs(mine));
-    out.push(head);
-
-    const here = el('div', 'choices');
-    for (const a of A.actions) {
-      const tags = a.cost ? [{ text: `${a.cost} gold`, cls: 'cost' }] : [];
-      const ico = a.kind === 'inn' ? 'inn' : a.kind === 'camp' ? 'camp' : a.kind === 'buy' ? (a.item || 'potion') : 'journal';
-      here.append(choiceButton(a.label, tags, () => TT.send({ t: 'adv:do', kind: a.kind, id: a.id, item: a.item }), a.cost > A.gold, ico));
-    }
-    out.push(here);
-
-    out.push(el('h4', 'now-sub', 'Travel'));
-    const exits = el('div', 'exits');
-    for (const x of A.exits) {
-      const node = A.world.nodes.find((n) => n.id === x.to);
-      const b = button([icon(node ? node.icon : 'map'), el('span', '', x.name), x.ok ? (x.visited ? null : el('span', 'tag new', 'new')) : el('span', 'tag lock', 'locked')], `exit${x.ok ? '' : ' locked'}`, () => {
-        if (!x.ok) return TT.toast(x.locked, true);
-        TT.send({ t: 'adv:travel', to: x.to });
+  function renderMenu(A) {
+    const list = $('#advMenuList');
+    const unread = unreadChat();
+    const sig = `${menuPage}:${unread}`;
+    if (list.dataset.built !== sig) {
+      list.dataset.built = sig;
+      const items = PAGES.map(([id, label, ico]) => {
+        const b = mi(label, { icon: ico, tag: id === 'chat' && unread ? String(unread) : null, tagCls: 'badge-tag', cls: id === menuPage ? 'current' : '', onClick: () => { menuPage = id; list.dataset.built = ''; render(); } });
+        b.dataset.page = id;
+        return b;
       });
-      if (!x.ok) b.title = x.locked;
-      exits.append(b);
+      items.push(mi('Leave game', { cls: 'danger', onClick: () => { if (confirm('Leave this game? You can rejoin later with the same code.')) { closeMenu(); TT.leave(); } } }));
+      items.push(mi('Close', { cls: 'back', onClick: closeMenu }));
+      list.replaceChildren(...items);
+      list.dataset.selIndex = String(Math.max(0, PAGES.findIndex(([id]) => id === menuPage)));
+      window.Menus.init(list);
     }
-    out.push(exits);
-
-    const potions = (A.inventory.find((i) => i.id === 'potion') || { n: 0 }).n;
-    const hurt = A.party.filter((p) => p.hp < p.maxHp);
-    if (potions && hurt.length) {
-      out.push(el('h4', 'now-sub', `Healing potions (${potions})`));
-      const row = el('div', 'exits');
-      for (const p of hurt) row.append(button([icon('potion'), `Give one to ${p.name} (${p.hp}/${p.maxHp})`], 'exit', () => TT.send({ t: 'adv:use', item: 'potion', ally: p.id })));
-      out.push(row);
-    }
-    return out;
+    $$('#advMenuPage > [data-page]').forEach((p) => { p.hidden = p.dataset.page !== menuPage; });
+    const page = $(`#advMenuPage > [data-page="${menuPage}"]`);
+    ({ items: pageItems, status: pageStatus, quests: pageQuests, map: pageMap, chat: pageChat, players: pagePlayers, settings: pageSettings, help: pageHelp })[menuPage](page, A);
   }
 
-  function monsterCard(m) {
-    const card = button([], `foe${m.hp <= 0 ? ' dead' : ''}${m.id === targetId ? ' target' : ''}${m.boss ? ' boss' : ''}`, () => {
-      if (m.hp <= 0) return;
-      targetId = m.id;
-      nowKey = '';
-      render();
-    });
-    card.dataset.foe = m.id;
-    const art = el('div', 'foe-art');
-    art.append(icon(m.icon, 'foe-ico'));
-    const ac = el('div', 'foe-ac', String(m.ac));
-    ac.title = 'Armor Class';
-    art.append(ac);
-    if (m.boss) art.append(el('div', 'foe-boss', 'Boss'));
-    const body = el('div', 'foe-body');
-    body.append(el('b', 'foe-name', m.name), hpBar(m.hp, m.maxHp), el('span', 'foe-stats', m.hp > 0 ? `HP ${m.hp}/${m.maxHp}` : 'Defeated'));
-    card.append(art, body);
-    card.title = m.hp > 0 ? 'Click to target' : '';
-    return card;
-  }
+  const pageHead = (title, sub) => { const h = el('div', 'page-head'); h.append(el('h2', '', title)); if (sub) h.append(el('p', 'hint', sub)); return h; };
 
-  function combatPanel(A, mine, cur) {
-    const out = [];
-    const living = A.combat.monsters.filter((m) => m.hp > 0);
-    if (!living.some((m) => m.id === targetId)) targetId = living[0] ? living[0].id : null;
-
-    const head = el('div', 'now-head');
-    head.append(icon('combat', 'gold'), el('h3', '', `Combat · Round ${TT.S.initiative.round}`));
-    // turn order strip
-    const order = el('div', 'turn-order');
-    for (const e of TT.S.initiative.list) {
-      const pc = A.party.find((p) => p.id === e.owner);
-      const mon = !e.owner && A.combat.monsters.find((m) => m.id === e.ref);
-      if ((pc && pc.hp <= 0) || (mon && mon.hp <= 0)) continue;
-      const chip = el('span', `turn-chip${e.id === TT.S.initiative.current ? ' now' : ''}${pc ? ' pc' : ' npc'}`);
-      chip.append(pc ? portrait(pc.id, pc.cls, 'xs') : icon(mon ? mon.icon : 'skull', 'sm'), el('span', '', e.name));
-      chip.title = `Initiative ${e.value}`;
-      order.append(chip);
-    }
-    head.append(order);
-    out.push(head);
-
-    const foes = el('div', 'foes');
-    for (const m of A.combat.monsters) foes.append(monsterCard(m));
-    out.push(foes);
-
-    const myTurn = cur && cur.owner === TT.me.id;
-    if (!myTurn) {
-      const who = cur ? cur.name : '…';
-      const wait = el('div', 'waiting');
-      wait.append(el('span', 'spinner'), `Waiting for ${who} to act…`);
-      const seat = cur && TT.localSeatFor(cur.owner);
-      if (seat && TT.seatCount() > 1) wait.append(button(`Switch to ${who}`, 'btn small', () => TT.switchSeat(seat)));
-      out.push(wait);
-      return out;
-    }
-
-    const turn = el('div', 'your-turn');
-    turn.append(el('b', '', `Your turn, ${mine.name}!`), el('span', 'hint', targetId ? ` Target: ${living.find((m) => m.id === targetId).name} (click a card to change)` : ''));
-    out.push(turn);
-
-    if (pendingAlly) {
-      const action = A.myActions.find((a) => a.id === pendingAlly);
-      out.push(el('h4', 'now-sub', `${action ? action.label : 'Heal'}: who?`));
-      const row = el('div', 'exits');
-      for (const p of A.party) {
-        row.append(button([portrait(p.id, p.cls, 'xs'), `${p.name} (${p.hp}/${p.maxHp})`], `exit${p.hp <= 0 ? ' down' : ''}`, () => {
-          TT.send({ t: 'adv:act', action: pendingAlly, ally: p.id });
-          pendingAlly = null;
-        }));
+  function pageItems(page, A) {
+    const rows = A.inventory.map((i) => {
+      const r = el('div', 'item-row');
+      const txt = el('div', 'grow');
+      txt.append(el('b', '', i.name), el('p', '', i.desc));
+      r.append(icon(i.icon, 'item-ico'), txt, el('span', 'item-n', `×${i.n}`));
+      if (i.id === 'potion' && !A.combat) {
+        const hurt = A.party.filter((p) => p.hp < p.maxHp);
+        if (hurt.length) {
+          const pick = el('div', 'use-row');
+          for (const p of hurt) pick.append(button(`Use on ${p.name} (${p.hp}/${p.maxHp})`, 'btn small', () => TT.send({ t: 'adv:use', item: 'potion', ally: p.id })));
+          txt.append(pick);
+        }
       }
-      row.append(button('Cancel', 'btn ghost small', () => { pendingAlly = null; nowKey = ''; render(); }));
-      out.push(row);
-      return out;
-    }
-
-    const grid = el('div', 'actions');
-    for (const a of A.myActions) {
-      const usesLeft = a.uses === undefined ? null : a.uses;
-      const ico = a.id === 'attack' ? (mine.cls === 'rogue' ? 'backstab' : 'attack') : ACTION_ICONS[a.id] || 'attack';
-      const b = button([icon(ico, 'act-ico'), el('b', '', a.label), el('span', 'act-desc', a.desc), usesLeft !== null ? el('span', 'tag', `${usesLeft} left`) : null], `act${a.id === 'flee' ? ' flee' : ''}`, () => {
-        if (a.target === 'ally') { pendingAlly = a.id; nowKey = ''; render(); return; }
-        TT.send({ t: 'adv:act', action: a.id, target: targetId });
-      });
-      if (usesLeft === 0) b.disabled = true;
-      grid.append(b);
-    }
-    out.push(grid);
-    return out;
+      return r;
+    });
+    page.replaceChildren(pageHead('Items', `Party gold: ${A.gold} G`), ...(rows.length ? rows : [el('p', 'hint', 'Your pack is empty.')]));
   }
 
-  // ---------- world map ----------
-  function renderWorld(A) {
+  function pageStatus(page, A) {
+    if (!A.party.length) { page.replaceChildren(pageHead('Status'), el('p', 'hint', 'No heroes yet.')); return; }
+    if (!A.party.some((p) => p.id === statusHero)) statusHero = (A.party.find((p) => p.id === TT.me.id) || A.party[0]).id;
+    const h = A.party.find((p) => p.id === statusHero);
+    const sheet = (TT.S.sheets || {})[h.id] || {};
+    const tabs = el('div', 'hero-tabs');
+    for (const p of A.party) tabs.append(button([portrait(p.id, p.cls, 'xs'), p.name], `hero-tab${p.id === h.id ? ' on' : ''}`, () => { statusHero = p.id; render(); }));
+    const card = el('div', 'status-card');
+    const left = el('div', 'status-left');
+    left.append(portrait(h.id, h.cls, 'lg'));
+    if (h.id === TT.me.id) {
+      const up = el('label', 'btn small', TT.S.portraits && TT.S.portraits[h.id] ? 'Change picture' : 'Add a picture');
+      const file = el('input');
+      file.type = 'file';
+      file.accept = 'image/*';
+      file.hidden = true;
+      file.onchange = () => { if (file.files[0]) TT.uploadPortrait(file.files[0]); file.value = ''; };
+      up.append(file);
+      left.append(up);
+    }
+    const right = el('div', 'status-right');
+    right.append(el('h3', '', h.name), el('p', 'status-cls', `Level ${h.level} ${h.clsName}`));
+    const stat = (label, value, barEl) => { const r = el('div', 'stat-row'); r.append(el('span', 'stat-k', label), barEl || el('span'), el('b', 'stat-v', value)); return r; };
+    right.append(stat('HP', `${h.hp} / ${h.maxHp}`, hpBar(h.hp, h.maxHp)));
+    right.append(stat('XP', h.nextXp ? `${h.xp} / ${h.nextXp}` : `${h.xp} (max)`, hpBar(h.nextXp ? h.xp : 1, h.nextXp || 1, 'xp')));
+    right.append(stat('Armor', String(h.ac)));
+    if (h.cls === 'wizard' || h.cls === 'cleric') right.append(stat('Spell slots', String(h.uses.slots)));
+    if (h.cls === 'fighter') right.append(stat('Second Wind', h.uses.secondWind ? 'Ready' : 'Used'));
+    const ab = el('div', 'abil-grid');
+    for (const [k, label] of ABIL) {
+      const score = Number(sheet[k]) || 10;
+      const c = el('div', 'abil');
+      c.append(el('small', '', label), el('b', '', signed(Math.floor((score - 10) / 2))), el('span', '', String(score)));
+      ab.append(c);
+    }
+    right.append(ab);
+    if (sheet.notes) right.append(el('p', 'status-notes', sheet.notes));
+    card.append(left, right);
+    page.replaceChildren(pageHead('Status'), tabs, card);
+  }
+
+  function pageQuests(page, A) {
+    const quests = A.journal.slice().sort((a, b) => a.done - b.done);
+    const rows = quests.map((q) => {
+      const d = el('div', `quest${q.done ? ' done' : ''}`);
+      d.append(el('b', '', `${q.done ? '✓ ' : '◆ '}${q.title}`), el('p', '', q.text));
+      return d;
+    });
+    page.replaceChildren(pageHead('Quests', 'Talk to people to find more.'), ...(rows.length ? rows : [el('p', 'hint', 'No quests yet. Talk to people!')]));
+  }
+
+  function pageMap(page, A) {
     const three = use3d();
     $('#advBoard3dWrap').hidden = !three;
     $('#advBoard2d').hidden = three;
-    if (three) {
-      window.Board3D.update($('#advBoard3d'), $('#advBoardLabels'), A, {
-        meId: TT.me.id,
-        pick(id) {
-          const exit = A.exits.find((x) => x.to === id);
-          if (A.location.id === id) return TT.toast(`You are in ${A.location.name}.`);
-          if (A.combat) return TT.toast('Finish the fight first!', true);
-          if (!exit) return TT.toast('You can\'t get there from here. Follow the roads.', true);
-          if (!exit.ok) return TT.toast(exit.locked, true);
-          TT.send({ t: 'adv:travel', to: id });
-        },
-      });
-      return;
-    }
+    const pick = (id) => {
+      const exit = A.exits.find((x) => x.to === id);
+      if (A.location.id === id) return TT.toast(`You are in ${A.location.name}.`);
+      if (A.combat) return TT.toast('Finish the fight first!', true);
+      if (!exit) return TT.toast('You can\'t get there from here. Follow the roads.', true);
+      if (!exit.ok) return TT.toast(exit.locked, true);
+      if (!A.party.some((p) => p.id === TT.me.id)) return TT.toast('Create your hero first.', true);
+      TT.send({ t: 'adv:travel', to: id });
+      closeMenu();
+    };
+    if (three) { window.Board3D.update($('#advBoard3d'), $('#advBoardLabels'), A, { meId: TT.me.id, pick }); return; }
+    drawBoard2d(A, pick);
+  }
+
+  function drawBoard2d(A, pick) {
     const board = $('#advBoard');
     const nodes = Object.fromEntries(A.world.nodes.map((n) => [n.id, n]));
     const reachable = new Map(A.exits.map((x) => [x.to, x]));
@@ -537,57 +705,148 @@
     for (const n of A.world.nodes) {
       const exit = reachable.get(n.id);
       const canGo = exit && exit.ok && !A.combat;
-      const b = button([el('span', 'pin-medal', ''), el('span', 'pin-name', n.visited ? n.name : `${n.name}?`)], `pin${n.visited ? ' visited' : ' unknown'}${n.here ? ' here' : ''}${canGo ? ' go' : ''}${exit && !exit.ok ? ' locked' : ''}`, () => {
-        if (canGo) TT.send({ t: 'adv:travel', to: n.id });
-        else if (exit && !exit.ok) TT.toast(exit.locked, true);
-        else if (n.here) TT.toast('You are here.');
-      });
+      const b = button([el('span', 'pin-medal'), el('span', 'pin-name', n.visited ? n.name : `${n.name}?`)], `pin${n.visited ? ' visited' : ' unknown'}${n.here ? ' here' : ''}${canGo ? ' go' : ''}${exit && !exit.ok ? ' locked' : ''}`, () => pick(n.id));
       b.firstChild.append(icon(n.icon));
       if (n.here) b.append(el('span', 'pin-here', 'You are here'));
       b.style.left = `${n.x}%`;
       b.style.top = `${(n.y / 70) * 100}%`;
-      b.title = canGo ? `Travel to ${n.name}` : n.name;
       pieces.push(b);
     }
     board.replaceChildren(...pieces);
   }
 
-  // ---------- journal ----------
-  function renderJournal(A) {
-    const box = $('[data-adv-view=journal]');
-    const quests = A.journal.slice().sort((a, b) => a.done - b.done);
-    const qs = el('section');
-    qs.append(el('h3', '', 'Quests'));
-    if (!quests.length) qs.append(el('p', 'hint', 'No quests yet. Talk to people!'));
-    for (const q of quests) {
-      const d = el('div', `quest${q.done ? ' done' : ''}`);
-      d.append(el('b', '', `${q.done ? '✓ ' : ''}${q.title}`), el('p', '', q.text));
-      qs.append(d);
+  // The chat lives in the sidebar in tabletop mode; in adventure mode it moves into the menu.
+  function placeChat(adventure) {
+    const panel = $('.panel[data-panel="chat"]');
+    if (!panel) return;
+    const target = adventure ? $('#advChatPage') : $('.side');
+    if (panel.parentElement !== target) {
+      if (adventure) { target.append(panel); panel.hidden = false; } else { $('.side').insertBefore(panel, $('.side .panel[data-panel="sheet"]')); }
     }
-    const inv = el('section');
-    inv.append(el('h3', '', `Party pack · ${A.gold} gold`));
-    if (!A.inventory.length) inv.append(el('p', 'hint', 'Empty.'));
-    for (const i of A.inventory) {
-      const d = el('div', 'item');
-      const txt = el('div');
-      txt.append(el('b', '', `${i.name}${i.n > 1 ? ` ×${i.n}` : ''}`), el('p', '', i.desc));
-      d.append(icon(i.icon, 'item-ico'), txt);
-      inv.append(d);
+  }
+  function chatMessages() { return ((TT.S && TT.S.chat) || []).filter((m) => m.kind === 'chat' && m.from !== TT.me.id); }
+  function unreadChat() {
+    const msgs = chatMessages();
+    const i = msgs.findIndex((m) => m.id === lastChatSeen);
+    return i < 0 ? (lastChatSeen ? msgs.length : 0) : msgs.length - i - 1;
+  }
+  function renderChatBadge() {
+    if (menuOpen && menuPage === 'chat') {
+      const msgs = chatMessages();
+      if (msgs.length) { lastChatSeen = msgs[msgs.length - 1].id; store.set('dnd.chatSeen', lastChatSeen); }
+    } else if (!lastChatSeen) {
+      // first visit: everything so far counts as read
+      const msgs = chatMessages();
+      if (msgs.length) { lastChatSeen = msgs[msgs.length - 1].id; store.set('dnd.chatSeen', lastChatSeen); }
     }
-    const help = el('section');
-    help.append(el('h3', '', 'How to play'));
-    help.append(el('p', 'hint', 'Pick what to do from the choices under the story. Choices marked with a d20 are skill checks: roll a d20 plus the bonus of the hero who picks them. DC is the number to beat, so let the best hero try. In a fight, heroes take turns in initiative order and the game plays the monsters. Rest at the inn to recover hit points and spells. Camping in the wild recovers half your hit points, but something may find you.'));
+    const n = unreadChat();
+    const badge = $('#advChatBadge');
+    badge.hidden = !n;
+    badge.textContent = String(n);
+  }
+  function pageChat(page) {
+    if (!page.querySelector('.page-head')) page.prepend(pageHead('Chat', 'Talk to your party. Type /help for dice commands.'));
+    renderChatBadge();
+  }
+
+  function pagePlayers(page) {
+    const S = TT.S;
+    const invite = el('div', 'invite');
+    invite.append(el('small', '', 'Game code'), el('b', 'code-big', TT.roomCode), button('Copy invite link', 'btn primary', () => TT.copyInvite()));
+    const online = el('div', 'player-list');
+    for (const p of S.players) {
+      const r = el('div', `player${p.online ? ' on' : ''}`);
+      r.append(el('span', 'dot'), el('span', 'grow', p.name), p.isDM ? el('span', 'role', 'Host') : el('span'));
+      online.append(r);
+    }
+    const seats = el('div', 'player-list');
+    for (const s of TT.seats()) {
+      const r = el('div', `player device-seat${s.active ? ' active' : ''}`);
+      r.append(el('span', 'grow', `${s.name}${s.active ? ' (playing now)' : ''}`));
+      if (!s.active) r.append(button('Switch', 'btn small', () => TT.switchSeat(s.pid)));
+      if (!s.main) r.append(button('Remove', 'btn ghost small', () => { if (confirm(`Remove ${s.name} from this device?`)) TT.removeSeat(s.pid); }));
+      seats.append(r);
+    }
+    const follow = el('label', 'check');
+    const cb = el('input');
+    cb.type = 'checkbox';
+    cb.checked = TT.followTurns;
+    cb.onchange = () => TT.setFollowTurns(cb.checked);
+    follow.append(cb, 'Switch players automatically on each battle turn');
+    const actions = el('div', 'row wrap');
+    actions.append(button('+ Add a player on this device', 'btn', () => TT.addSeat()), button('Change my name', 'btn ghost', () => TT.rename()));
+    page.replaceChildren(
+      pageHead('Players', 'Invite friends to play from their own devices, or add players who share this screen.'),
+      invite, el('h3', '', 'In this game'), online, el('h3', '', 'On this device'), seats, actions, follow,
+    );
+  }
+
+  function pageSettings(page) {
+    const toggle = (label, on, set, hint) => {
+      const r = el('div', 'setting');
+      const t = el('div', 'grow');
+      t.append(el('b', '', label));
+      if (hint) t.append(el('p', 'hint', hint));
+      const sw = button(on ? 'ON' : 'OFF', `switch${on ? ' on' : ''}`, () => { set(!on); render(); });
+      sw.setAttribute('aria-pressed', String(on));
+      r.append(t, sw);
+      return r;
+    };
+    const rows = [toggle('Sound effects', !FX.muted, (v) => FX.setMuted(!v), 'Dice, hits, spells, coins and menu sounds.')];
+    if (window.Board3D) rows.push(toggle('3D graphics', use3d(), (v) => { store.set('dnd.3d', v ? '1' : '0'); nowKey = ''; }, '3D world map, battles and dice. Turn off on slower computers.'));
+    rows.push(toggle('Auto-switch players in battle', TT.followTurns, (v) => TT.setFollowTurns(v), 'When several players share this screen.'));
+    page.replaceChildren(pageHead('Settings'), ...rows);
+  }
+
+  function pageHelp(page) {
+    const p = (t) => el('p', '', t);
     const credits = el('p', 'hint credits');
-    credits.append('Icons by Lorc, Delapouite, Skoll and others from ');
-    const a1 = el('a', '', 'game-icons.net');
-    a1.href = 'https://game-icons.net';
-    a1.target = '_blank';
-    a1.rel = 'noopener';
-    const a2 = el('a', '', 'full credits');
-    a2.href = '/art/CREDITS.md';
-    a2.target = '_blank';
-    credits.append(a1, ' (CC BY 3.0) · ', a2);
-    help.append(credits);
-    box.replaceChildren(qs, inv, help);
+    const a = el('a', '', 'Art & model credits');
+    a.href = '/art/CREDITS.md';
+    a.target = '_blank';
+    credits.append(a);
+    page.replaceChildren(
+      pageHead('How to play'),
+      el('h3', '', 'Commands'),
+      p('The Command window (right) lists what you can do. Move the ▶ cursor with ↑ ↓ or your mouse, and press Enter or click to choose. Esc goes back, or opens this menu.'),
+      el('h3', '', 'Skill checks'),
+      p('Choices with a d20 are checks: the game rolls a d20 and adds the bonus of the hero who chooses. Reach the number shown to succeed, so let the best hero try.'),
+      el('h3', '', 'Battles'),
+      p('Heroes take turns. On your turn pick Attack and a target, a Skill, an Item, Defend or Run. The game plays the monsters.'),
+      el('h3', '', 'Resting'),
+      p('Rest at an inn to recover HP and spells. Camping heals half your HP, but something may find you.'),
+      el('h3', '', 'Sharing one screen'),
+      p('Add players in Menu → Players. Click a hero in the Party window to switch who is choosing.'),
+      credits,
+    );
+  }
+
+  // ---------- keyboard: Esc goes back, or opens/closes the menu ----------
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || $('#adventure').hidden) return;
+    const a = document.activeElement;
+    if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) { a.blur(); return; }
+    e.preventDefault();
+    if (!$('#advModal').hidden) { modalClosed = true; nowKey = ''; FX.sfx('back'); render(); return; }
+    if (menuOpen) { FX.sfx('back'); closeMenu(); return; }
+    if (stack.length) { FX.sfx('back'); back(); return; }
+    openMenu();
+  });
+
+  // ---------- effects ----------
+  function playNewEffects(S, A) {
+    if (primedRoom !== S.code) { seenLog.clear(); primedRoom = S.code; for (const e of A.log) seenLog.add(e.id); return; }
+    const fresh = [];
+    for (const e of A.log) {
+      if (seenLog.has(e.id)) continue;
+      seenLog.add(e.id);
+      if (e.fx) fresh.push(e.fx);
+    }
+    if (!fresh.length) return;
+    FX.enqueue(fresh, {
+      meId: TT.me.id,
+      nameOf: (id) => (A.party.find((p) => p.id === id) || { name: 'A hero' }).name,
+      levelOf: (id) => (A.party.find((p) => p.id === id) || { level: '' }).level,
+    });
   }
 })();

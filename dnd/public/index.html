@@ -10,34 +10,31 @@
 </head>
 <body>
 
-<!-- ============ Lobby ============ -->
+<!-- ============ Title screen ============ -->
 <main id="lobby" class="lobby">
-  <div class="lobby-card">
-    <div class="brand"><span class="d20">⬢</span> Tabletop</div>
-    <p class="sub">A shared map, dice and character sheets for your D&amp;D group. Hosted by you.</p>
+  <div class="title">
+    <div class="title-logo"><span class="d20">⬢</span> Tabletop</div>
+    <div class="title-sub">Fantasy adventures for you and your friends</div>
+  </div>
 
-    <label class="field">Your name
+  <div class="win lobby-win">
+    <label class="field name-field">Your name
       <input id="lobbyName" maxlength="30" placeholder="e.g. Mira the Bold" autocomplete="nickname">
     </label>
-
-    <div class="lobby-split">
-      <section>
-        <h2>Join a game</h2>
-        <label class="field">Game code
-          <input id="lobbyCode" maxlength="6" placeholder="ABC123" autocapitalize="characters" spellcheck="false">
-        </label>
-        <button id="joinBtn" class="btn primary">Join game</button>
-      </section>
-      <div class="or">or</div>
-      <section>
-        <h2>Start a new game</h2>
-        <div id="advList" class="adv-list"></div>
-        <button id="createBtn" class="btn">Free tabletop (you're the DM)</button>
-        <p class="hint"><b>Adventure:</b> the game tells the story and runs the monsters, so everyone plays a hero.<br><b>Tabletop:</b> one of you is the DM, with a shared map, tokens and dice.</p>
-      </section>
+    <div class="menu lobby-menu" id="lobbyMenu" data-prio="1">
+      <div id="advList" class="adv-list"></div>
+      <button class="mi" id="joinOpen" type="button" data-help="Join a friend's game. Ask them for the 6-letter game code.">Join a Game</button>
+      <div class="join-row" id="joinRow" hidden>
+        <input id="lobbyCode" maxlength="6" placeholder="Game code" autocapitalize="characters" spellcheck="false" aria-label="Game code">
+        <button id="joinBtn" class="btn primary" type="button">Join</button>
+      </div>
+      <button class="mi" id="createBtn" type="button" data-help="Free Tabletop: one of you is the Dungeon Master, with a shared map, tokens, dice and character sheets.">Free Tabletop (be the DM)</button>
     </div>
-    <p id="lobbyError" class="error" role="alert"></p>
   </div>
+
+  <div class="win win-sm lobby-help" id="lobbyHelp" aria-live="polite"></div>
+  <p id="lobbyError" class="error" role="alert"></p>
+  <p class="lobby-keys">↑ ↓ choose · Enter confirm</p>
 </main>
 
 <!-- ============ Table ============ -->
@@ -61,46 +58,70 @@
     <div class="map-wrap">
       <canvas id="map"></canvas>
       <section id="adventure" class="adv" hidden>
-        <header class="adv-head">
+        <!-- Scene (picture or 3D), with small info windows on top -->
+        <div class="adv-stagewrap" id="advStageWrap">
           <div class="adv-scene" id="advScene"></div>
           <canvas class="adv-weather" id="advWeather" aria-hidden="true"></canvas>
           <div class="adv-stage3d" id="advStage3d" hidden></div>
-          <div class="adv-plaque">
+          <div class="win win-sm adv-where">
             <span class="ico place-ico" id="advPlaceIcon" aria-hidden="true"></span>
             <div>
               <div class="adv-region"><span id="advTitle"></span> · <span id="advRegion"></span></div>
               <h2 id="advPlace"></h2>
             </div>
           </div>
-          <div class="adv-purse" title="Party gold and healing potions">
-            <span class="ico gold" style="--i:url(/art/icons/gold.svg)" aria-hidden="true"></span> <b id="advGold">0</b> gold ·
-            <span class="ico potion-ico" style="--i:url(/art/icons/potion.svg)" aria-hidden="true"></span> <span id="advPotions">0 potions</span>
-            <button id="advMute" class="adv-mute" type="button" title="Sound effects on/off"></button>
-            <button id="adv3d" class="adv-mute" type="button" title="3D models on/off" hidden></button>
-          </div>
-          <nav class="adv-tabs">
-            <button data-adv-tab="story" class="active">Story</button>
-            <button data-adv-tab="world">World map</button>
-            <button data-adv-tab="journal">Journal</button>
-          </nav>
-        </header>
-        <div class="adv-body">
-          <div data-adv-view="story" class="adv-story" id="advStory">
-            <div id="advLog" class="adv-log" aria-live="polite"></div>
-            <div id="advNow" class="adv-now"></div>
-          </div>
-          <div data-adv-view="world" class="adv-world" hidden>
-            <div class="board3d-wrap" id="advBoard3dWrap" hidden>
-              <div id="advBoard3d" class="board3d" aria-label="3D world map"></div>
-              <div id="advBoardLabels" class="board3d-labels"></div>
-              <div class="board3d-hint">Drag to turn the board · scroll or pinch to zoom · right-drag to slide · click a glowing place to travel</div>
+          <div class="adv-topright">
+            <div class="win win-sm adv-purse" title="Party gold and healing potions">
+              <span class="ico gold" style="--i:url(/art/icons/gold.svg)" aria-hidden="true"></span><b id="advGold">0</b> G
+              <span class="ico potion-ico" style="--i:url(/art/icons/potion.svg)" aria-hidden="true"></span><b id="advPotions">0</b>
             </div>
-            <div class="board-frame" id="advBoard2d"><div id="advBoard" class="board" role="group" aria-label="World map"></div></div>
-            <p class="hint">Click a glowing place next to you to travel there. Dashed roads are locked for now.</p>
+            <button class="win win-sm win-btn" id="advMenuBtn" type="button" title="Open the menu (Esc)">
+              ☰ Menu<span class="badge" id="advChatBadge" hidden></span>
+            </button>
           </div>
-          <div data-adv-view="journal" class="adv-journal" hidden></div>
+          <span class="adv-conn" id="advConn"></span>
+          <div class="win enemies" id="advEnemies" hidden></div>
         </div>
-        <div id="advParty" class="adv-party"></div>
+
+        <!-- Story, party and commands -->
+        <div class="adv-lower">
+          <div class="adv-left">
+            <div class="win story" id="advStory">
+              <div id="advLog" class="adv-log" aria-live="polite"></div>
+            </div>
+            <div class="win party" id="advParty"></div>
+          </div>
+          <div class="win command" id="advNow"></div>
+        </div>
+
+        <!-- Main menu -->
+        <div class="menu-overlay" id="advMenu" hidden>
+          <div class="win menu-list">
+            <div class="win-title">Menu</div>
+            <div class="menu" id="advMenuList" data-prio="2"></div>
+          </div>
+          <div class="win menu-page" id="advMenuPage">
+            <div data-page="items"></div>
+            <div data-page="status"></div>
+            <div data-page="quests"></div>
+            <div data-page="map">
+              <div class="page-head"><h2>World map</h2><p class="hint">Places next to you glow. Click one to travel there; dashed roads are locked for now.</p></div>
+              <div class="board3d-wrap" id="advBoard3dWrap" hidden>
+                <div id="advBoard3d" class="board3d" aria-label="3D world map"></div>
+                <div id="advBoardLabels" class="board3d-labels"></div>
+                <div class="board3d-hint">Drag to turn · scroll or pinch to zoom · right-drag to slide · click a glowing place to travel</div>
+              </div>
+              <div class="board-frame" id="advBoard2d"><div id="advBoard" class="board" role="group" aria-label="World map"></div></div>
+            </div>
+            <div data-page="chat" id="advChatPage"></div>
+            <div data-page="players"></div>
+            <div data-page="settings"></div>
+            <div data-page="help"></div>
+          </div>
+        </div>
+
+        <!-- Hero creation -->
+        <div class="modal" id="advModal" hidden></div>
       </section>
       <div class="zoom">
         <button data-zoom="in" title="Zoom in">+</button>
@@ -261,6 +282,7 @@
 <div id="toast" class="toast" role="status"></div>
 <script src="art/scenes.js"></script>
 <script src="fx.js"></script>
+<script src="menu.js"></script>
 <script src="app.js"></script>
 <script src="adventure.js"></script>
 <script type="module" src="3d/main.js"></script>

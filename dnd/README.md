@@ -17,6 +17,18 @@ Start **Play an adventure** and the game runs the story for you. Everyone (inclu
 
 The included adventure is **The Ashen Vale**: 8 locations, a main quest, 3 side quests, and 8 kinds of monsters. It takes roughly 1–2 hours and suits 2–4 heroes. Solo players can run two or three heroes from one screen.
 
+### Screen layout and controls
+
+The adventure screen uses classic RPG-style windows:
+
+- **Scene** (top): the place you're in, or the battle in 3D. The **Enemies** window shows in fights.
+- **Story** window: what's happening.
+- **Command** window: what you can do right now. Submenus like **Travel ▸**, **Skills ▸** and **Items ▸** open in place, and **◀ Back** returns.
+- **Party** window: everyone's HP. The ▶ marks whose turn it is; click a hero to switch players on a shared screen.
+- **Menu** (top right, or **Esc**): Items, Status, Quests, World map, Chat, Players & invite code, Settings, How to play, Leave.
+
+Keyboard: **↑ ↓** move the cursor, **Enter** chooses, **Esc** goes back or opens the menu. Mouse and touch work everywhere too.
+
 ### Art, effects and sound
 
 - **Every location has its own illustrated scene** with live weather: falling ash (until you ring the bell), fog, fireflies, embers, marsh wisps, crypt drips and chimney smoke.
@@ -133,6 +145,7 @@ npm test   # dice tests, a multiplayer session against the real server, full adv
 | `adventure.js` | Adventure engine: exploration, checks, quests, levelling and automated combat |
 | `adventures/` | Adventure content (story, map, monsters) |
 | `dice.js` | Dice expression parser |
+| `public/menu.js` | Window-menu cursor, keyboard controls and menu sounds |
 | `public/fx.js` | Weather particles, combat effects, dice animation and sounds |
 | `public/3d/` | 3D world board, battle stage, dice and hero preview (three.js) |
 | `public/models/` | Optimized 3D models (built by `scripts/build-models.mjs`) |

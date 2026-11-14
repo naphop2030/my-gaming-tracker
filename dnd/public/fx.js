@@ -44,7 +44,7 @@
       const area = (this.w * this.h) / (1200 * 220);
       this.parts = [];
       for (const kind of this.kinds.split(',').filter(Boolean)) {
-        const count = { ash: 90, clear: 26, fog: 7, fireflies: 22, embers: 30, wisps: 3, drips: 10, smoke: 10 }[kind] || 0;
+        const count = { ash: 90, clear: 26, fog: 4, fireflies: 22, embers: 30, wisps: 3, drips: 10, smoke: 6 }[kind] || 0;
         for (let i = 0; i < Math.round(count * Math.max(0.4, Math.min(2, area))); i++) this.parts.push(this.spawn(kind, true));
       }
     }
@@ -55,7 +55,7 @@
       switch (kind) {
         case 'ash': Object.assign(p, { y: anywhere ? p.y : -10, r: rand(0.8, 2.4), vy: rand(10, 28), vx: rand(-8, 6), a: rand(0.35, 0.8) }); break;
         case 'clear': Object.assign(p, { y: anywhere ? p.y : h + 10, r: rand(0.8, 1.8), vy: -rand(4, 10), vx: rand(-3, 3), a: rand(0.3, 0.7) }); break;
-        case 'fog': Object.assign(p, { y: rand(h * 0.45, h * 0.95), r: rand(120, 260), vx: rand(4, 12) * (Math.random() < 0.5 ? -1 : 1), a: rand(0.05, 0.12) }); break;
+        case 'fog': Object.assign(p, { y: rand(h * 0.5, h * 0.95), r: rand(90, 170), vx: rand(4, 12) * (Math.random() < 0.5 ? -1 : 1), a: rand(0.06, 0.13) }); break;
         case 'fireflies': Object.assign(p, { y: rand(h * 0.35, h), r: rand(1.2, 2.4), vx: rand(-8, 8), vy: rand(-6, 6) }); break;
         case 'embers': Object.assign(p, { y: anywhere ? p.y : h + 5, x: rand(w * 0.25, w * 0.75), r: rand(0.8, 2), vy: -rand(18, 40), vx: rand(-8, 8), a: rand(0.5, 1) }); break;
         case 'wisps': Object.assign(p, { x: rand(w * 0.3, w * 0.8), y: rand(h * 0.35, h * 0.65), r: rand(3, 5), ox: 0, oy: 0 }); p.bx = p.x; p.by = p.y; break;
@@ -66,7 +66,7 @@
       return p;
     }
     start() {
-      if (this.running || reduced || !this.kinds) { if (reduced) this.drawStatic(); return; }
+      if (this.running || this.paused || reduced || !this.kinds) { if (reduced) this.drawStatic(); return; }
       this.running = true;
       this.last = performance.now();
       requestAnimationFrame(this.loop);
@@ -76,8 +76,12 @@
       ctx.clearRect(0, 0, this.w, this.h);
       for (const p of this.parts) if (p.kind === 'ash' || p.kind === 'clear') this.drawPart(p);
     }
+    pause(on) {
+      this.paused = !!on;
+      if (!this.paused) this.start();
+    }
     loop(now) {
-      if (document.hidden || !this.canvas.isConnected || !this.canvas.offsetParent) { this.running = false; return; }
+      if (this.paused || document.hidden || !this.canvas.isConnected || !this.canvas.offsetParent) { this.running = false; return; }
       const dt = Math.min(0.05, (now - this.last) / 1000);
       this.last = now;
       const { ctx, w, h } = this;
@@ -93,7 +97,7 @@
           case 'embers': p.x += (p.vx + Math.sin(p.t * 3) * 12) * dt; p.y += p.vy * dt; p.a -= dt * 0.25; if (p.y < -5 || p.a <= 0) this.parts[i] = this.spawn('embers'); break;
           case 'wisps': p.x = p.bx + Math.sin(p.t * 0.7) * 40; p.y = p.by + Math.sin(p.t * 1.3) * 14; break;
           case 'drips': if (p.delay > 0) { p.delay -= dt; break; } p.vy += 600 * dt; p.y += p.vy * dt; if (p.y > h - 8) { p.splash = 0.3; this.parts[i] = Object.assign(this.spawn('drips'), { y: -5, delay: rand(0.5, 4), sx: p.x, splash: 0.3 }); } break;
-          case 'smoke': p.x += p.vx * dt; p.y += p.vy * dt; p.r += dt * 6; if (p.y < -p.r) this.parts[i] = this.spawn('smoke'); break;
+          case 'smoke': p.x += p.vx * dt; p.y += p.vy * dt; p.r = Math.min(60, p.r + dt * 4); p.a -= dt * 0.004; if (p.y < -p.r || p.a <= 0) this.parts[i] = this.spawn('smoke'); break;
           default: break;
         }
         this.drawPart(this.parts[i]);
@@ -198,6 +202,11 @@
     combat() { tone(98, 0.25, { type: 'triangle', vol: 0.2 }); tone(98, 0.25, { type: 'triangle', vol: 0.2, at: 0.22 }); tone(131, 0.4, { type: 'triangle', vol: 0.2, at: 0.44 }); },
     bell() { [262, 524, 786].forEach((f, i) => tone(f, 2.4, { vol: 0.1 / (i + 1) })); },
     quest() { tone(784, 0.15, { vol: 0.06 }); tone(1047, 0.25, { vol: 0.06, at: 0.1 }); },
+    // menu sounds
+    cursor() { tone(1175, 0.035, { type: 'square', vol: 0.025 }); },
+    select() { tone(1568, 0.05, { type: 'square', vol: 0.03 }); tone(2093, 0.07, { type: 'square', vol: 0.025, at: 0.045 }); },
+    back() { tone(988, 0.05, { type: 'square', vol: 0.03 }); tone(740, 0.07, { type: 'square', vol: 0.025, at: 0.045 }); },
+    open() { tone(784, 0.05, { type: 'triangle', vol: 0.06 }); tone(1175, 0.08, { type: 'triangle', vol: 0.05, at: 0.05 }); },
   };
   const play = (name, arg) => { try { if (!muted && SOUNDS[name]) SOUNDS[name](arg); } catch { /* ignore */ } };
 
@@ -406,5 +415,6 @@
     get muted() { return muted; },
     setMuted(v) { muted = !!v; store.set('dnd.mute', muted ? '1' : '0'); if (!muted) play('coins'); },
     reduced,
+    sfx: (name) => play(name),
   };
 })();
