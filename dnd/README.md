@@ -21,6 +21,9 @@ The included adventure is **The Ashen Vale**: 16 places across two regions, a ma
 - **Beyond the Vale** (levels 2–5): goblins raiding Bramblefields from their warren, the Saltreed Causeway, the lake town of **Harrowmere** (a second town with an inn, a shop and a dwarven forge selling the best gear), the Mere Hag in the Drowned Shrine, snowy Frostfang Pass with the white wolf Frostmane, the rangers of Stonewatch Lodge, and Warlord Grukk's orcs in Ironjaw Hold.
 - **Getting around:** each place shows a **danger rating** (☆ to ★★★★) in the travel menu and on its arrival card. Places with something new to do get a **"!"** on the map. Thornwick, Harrowmere and Stonewatch Lodge are **coach stops**: once you've visited them, the coach takes you between them for a few gold.
 - **Arrival cards:** when you reach a place, its moving painting fills the screen with its name, a line about it and its danger rating, like a loading screen. Click to skip.
+- **Difficulty:** pick Story, Normal or Hard on the title screen before starting. Story has gentler fights and costs no gold on defeat; Hard has tougher monsters and 20% more XP. The host can change it any time between fights in Settings.
+- **Bestiary:** a Menu page that records every creature you meet, Pokédex-style, with its lore, how many you've defeated and tips on beating it (what it's weak to, what to watch out for). It also shows your party's records: battles won, critical hits, damage dealt, gold earned and more. The records also appear when you reach an ending.
+- **Comfort settings:** text size (Normal, Large, Larger) and Calm mode (no screen shake, still pictures) in Settings.
 
 ### What's in a hero's journey
 

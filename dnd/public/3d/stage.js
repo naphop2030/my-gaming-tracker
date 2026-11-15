@@ -505,7 +505,7 @@ export class Stage {
     this.tween(target.group.position, home, back, 0.08, () => this.tween(target.group.position, back, home, 0.3, () => { target.knocked = false; }));
   }
   tween(vec, from, to, dur, done) { this.tweens.push({ vec, from: from.clone(), to: to.clone(), t: 0, dur, done }); }
-  shake(amount) { this.shakeAmt = Math.max(this.shakeAmt, amount); }
+  shake(amount) { if (document.documentElement.classList.contains('calm') || matchMedia('(prefers-reduced-motion: reduce)').matches) return; this.shakeAmt = Math.max(this.shakeAmt, amount); }
   actionCam(a, b, w) {
     const p = a.group.position.clone().add(b.group.position).multiplyScalar(0.5).setY(1);
     this.action = { point: p, w: Math.min(1, w + 0.2), hold: 0.9 };

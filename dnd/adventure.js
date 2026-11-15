@@ -10,6 +10,19 @@ const ADVENTURES = {};
 for (const a of [require('./adventures/ashen-vale')]) ADVENTURES[a.id] = a;
 
 const LOG_LIMIT = 150;
+// Difficulty, chosen by the host: monster health, monster damage, XP and how much gold a defeat costs.
+const DIFFICULTY = {
+  story: { name: 'Story', hp: 0.7, dmg: 0.7, xp: 1, goldLoss: 0, desc: 'Gentler fights and no gold lost on defeat. For enjoying the tale.' },
+  normal: { name: 'Normal', hp: 1, dmg: 1, xp: 1, goldLoss: 0.5, desc: 'The adventure as designed.' },
+  hard: { name: 'Hard', hp: 1.3, dmg: 1.25, xp: 1.2, goldLoss: 0.5, desc: 'Tougher, hungrier monsters, and 20% more XP.' },
+};
+const diff = (adv) => DIFFICULTY[adv.difficulty] || DIFFICULTY.normal;
+const bump = (adv, key, n = 1) => { adv.stats = adv.stats || {}; adv.stats[key] = (adv.stats[key] || 0) + n; };
+function meet(adv, key, defeated) {
+  adv.bestiary = adv.bestiary || {};
+  const b = adv.bestiary[key] || (adv.bestiary[key] = { seen: 0, defeated: 0 });
+  if (defeated) b.defeated += 1; else b.seen += 1;
+}
 let ICON_FILES = new Set();
 try {
   ICON_FILES = new Set(require('fs').readdirSync(require('path').join(__dirname, 'public', 'art', 'icons')).map((f) => f.replace(/\.svg$/, '')));
@@ -103,11 +116,11 @@ function list() {
 }
 const exists = (id) => !!ADVENTURES[id];
 
-function create(id) {
+function create(id, opts = {}) {
   const A = ADVENTURES[id];
   if (!A) fail('Unknown adventure.');
   const adv = {
-    id, location: A.start, prev: null, scene: null,
+    id, location: A.start, prev: null, scene: null, difficulty: DIFFICULTY[opts.difficulty] ? opts.difficulty : 'normal', stats: {}, bestiary: {},
     flags: {}, visited: { [A.start]: true },
     inventory: { ...(A.startItems || {}) }, gold: A.startGold || 0,
     party: {}, journal: [], log: [], combat: null, ended: null,
@@ -233,6 +246,7 @@ function levelUp(adv, c, quiet) {
 
 function giveXp(adv, amount) {
   if (!amount) return;
+  amount = Math.round(amount * diff(adv).xp);
   const list = heroes(adv);
   if (!list.length) return;
   log(adv, 'loot', `Each hero gains ${amount} XP.`, { fx: { t: 'xp', n: amount } });
@@ -317,6 +331,7 @@ function moveTo(room, to, encounters) {
   adv.prev = adv.location;
   adv.location = to;
   adv.visited[to] = true;
+  bump(adv, 'journeys');
   adv.scene = null;
   logPlace(adv, to);
   if (encounters && !maybeEncounter(room)) maybeEvent(room);
@@ -368,6 +383,7 @@ function apply(room, actor, o) {
   for (const f of [].concat(o.unset || [])) delete adv.flags[f];
   if (o.gold) {
     adv.gold = Math.max(0, adv.gold + o.gold);
+    if (o.gold > 0) bump(adv, 'gold', o.gold);
     log(adv, 'loot', o.gold > 0 ? `+${o.gold} gold` : `${o.gold} gold`, o.gold > 0 ? { fx: { t: 'gold', n: o.gold } } : undefined);
   }
   for (const [id, n] of Object.entries(o.give || {})) addItem(adv, id, n);
@@ -417,7 +433,7 @@ function startCombat(room, monsterIds, opts = {}) {
   const A = content(adv);
   // Scale fights to the party: small parties face fewer, weaker monsters.
   const n = Math.max(1, alive(adv).length);
-  const scale = n === 1 ? 0.6 : n === 2 ? 0.9 : 0.9 + (n - 2) * 0.2;
+  const scale = (n === 1 ? 0.6 : n === 2 ? 0.9 : 0.9 + (n - 2) * 0.2) * diff(adv).hp;
   monsterIds = monsterIds.slice();
   const limit = n === 1 ? 2 : n + 1;
   while (monsterIds.length > limit) {
@@ -434,6 +450,7 @@ function startCombat(room, monsterIds, opts = {}) {
     seen[key] = (seen[key] || 0) + 1;
     return newMonster(A, key, counts[key] > 1 ? `${A.monsters[key].name} ${seen[key]}` : A.monsters[key].name, scale);
   });
+  for (const m of monsters) meet(adv, m.key);
   adv.combat = { monsters, win: opts.win || null, canFlee: opts.flee !== false, atkAdj: n === 1 ? -1 : 0, bless: 0, scale };
   for (const { c } of heroes(adv)) { c.status = {}; c.defending = false; }
   log(adv, 'combat', `${opts.text ? `${opts.text} ` : ''}Combat begins: ${monsters.map((m) => m.name).join(', ')}.`, { title: 'Combat', fx: { t: 'combat' } });
@@ -460,6 +477,7 @@ function critDice(expr) {
 function hurtMonster(room, m, dmg, src = {}) {
   const adv = room.adventure;
   const M = content(adv).monsters[m.key];
+  bump(adv, 'dealt', Math.min(dmg, m.hp));
   m.hp = Math.max(0, m.hp - dmg);
   if (m.status.sleep && dmg > 0) { delete m.status.sleep; log(adv, 'combat', `${m.name} wakes up!`); }
   if (m.hp > 0) return;
@@ -470,6 +488,8 @@ function hurtMonster(room, m, dmg, src = {}) {
     return;
   }
   log(adv, 'hit', `${m.name} is defeated!`, { fx: { t: 'kill', id: m.id } });
+  bump(adv, 'kills');
+  meet(adv, m.key, true);
   if (M.reassemble && !m.used.reassemble && !src.radiant && chance(0.4)) {
     m.used.reassemble = true;
     m.hp = Math.max(1, Math.ceil(m.maxHp / 2));
@@ -479,15 +499,17 @@ function hurtMonster(room, m, dmg, src = {}) {
 
 function hurtHero(room, heroId, c, dmg, text, fxExtra = {}) {
   const adv = room.adventure;
+  if (dmg > 0) dmg = Math.max(1, Math.round(dmg * diff(adv).dmg));
   // Uncanny Dodge: halve the first hit each round.
   if (has(c, 'uncanny-dodge') && c.dodgeRound !== room.initiative.round && dmg > 1) {
     c.dodgeRound = room.initiative.round;
     dmg = Math.ceil(dmg / 2);
     text += ' (Uncanny Dodge halves it)';
   }
+  bump(adv, 'taken', Math.min(dmg, c.hp));
   c.hp = Math.max(0, c.hp - dmg);
   log(adv, 'hurt', `${text.replace('{dmg}', dmg)}`, { fx: { t: 'hurt', id: heroId, n: dmg, ...fxExtra } });
-  if (c.hp === 0) { c.status = {}; log(adv, 'hurt', `${c.name} falls unconscious!`, { fx: { t: 'down', id: heroId } }); }
+  if (c.hp === 0) { bump(adv, 'downs'); c.status = {}; log(adv, 'hurt', `${c.name} falls unconscious!`, { fx: { t: 'down', id: heroId } }); }
   return dmg;
 }
 
@@ -502,6 +524,7 @@ function monsterTurn(room, m) {
     m.used.summon = true;
     const extra = newMonster(A, M.summon.key, `${A.monsters[M.summon.key].name} (summoned)`, adv.combat.scale);
     adv.combat.monsters.push(extra);
+    meet(adv, extra.key);
     room.initiative.list.push({ id: rid(), name: extra.name, value: 0, owner: null, ref: extra.id });
     log(adv, 'combat', `${m.name} ${M.summon.text || 'calls for help!'} ${extra.name} joins the fight.`, { fx: { t: 'combat' } });
     return;
@@ -635,7 +658,8 @@ function endCombat(room, how) {
 
   if (how === 'lose') {
     log(adv, 'ending', A.defeat || 'The party falls...', { title: 'Defeat', fx: { t: 'defeat' } });
-    adv.gold = Math.floor(adv.gold / 2);
+    bump(adv, 'defeats');
+    adv.gold = Math.floor(adv.gold * (1 - diff(adv).goldLoss));
     restAll(adv);
     adv.prev = null;
     adv.location = A.start;
@@ -650,6 +674,7 @@ function endCombat(room, how) {
     return;
   }
   log(adv, 'combat', 'Victory!', { title: 'Victory', fx: { t: 'victory' } });
+  bump(adv, 'wins');
   // Loot: gold from the fallen, and the occasional item.
   let gold = 0;
   for (const m of c.monsters) {
@@ -657,7 +682,7 @@ function endCombat(room, how) {
     if (M.gold) gold += dice(M.gold);
     if (M.drop && chance(M.drop.chance)) addItem(adv, M.drop.item);
   }
-  if (gold) { adv.gold += gold; log(adv, 'loot', `+${gold} gold from the fallen.`, { fx: { t: 'gold', n: gold } }); }
+  if (gold) { adv.gold += gold; bump(adv, 'gold', gold); log(adv, 'loot', `+${gold} gold from the fallen.`, { fx: { t: 'gold', n: gold } }); }
   giveXp(adv, c.monsters.reduce((sum, m) => sum + (A.monsters[m.key].xp || 0), 0));
   if (c.win) apply(room, null, c.win);
 }
@@ -727,6 +752,7 @@ function attackRoll(room, c, m, bonus, dmgExpr, verb, fxStyle = 'slash', opts = 
   const total = nat + bonus;
   if (nat === 20 || (nat !== 1 && total >= M.ac)) {
     const dmg = Math.max(1, dice(nat === 20 ? critDice(dmgExpr) : dmgExpr));
+    if (nat === 20) bump(adv, 'crits');
     log(adv, 'hit', `${c.name} ${verb} ${m.name}: ${total} vs AC ${M.ac}${advantage ? ' (advantage)' : ''}. Hit for ${dmg}${nat === 20 ? ' (critical!)' : ''}.`, { fx: { t: 'dmg', id: m.id, n: dmg, crit: nat === 20, by: idOf(adv, c), style: fxStyle } });
     hurtMonster(room, m, dmg, { crit: nat === 20, radiant: fxStyle === 'holy' });
     return true;
@@ -788,6 +814,7 @@ function useConsumable(room, c, id, msg) {
   if (it.heal) {
     if (!adv.combat && ally.hp >= ally.maxHp) fail(`${ally.name} is already at full health.`);
     adv.inventory[id] -= 1;
+    bump(adv, 'potions');
     heal(adv, c, ally, it.heal, `uses a ${it.name.toLowerCase()}`);
   } else if (it.restoreSlot) {
     if (!['wizard', 'cleric'].includes(ally.cls)) fail('Only spellcasters can use that.');
@@ -975,6 +1002,30 @@ function unequip(adv, c, slot, quiet) {
   if (!quiet) log(adv, 'loot', `${c.name} takes off ${it.name}.`);
 }
 
+// The bestiary: every monster the party has met, with tips worked out from what it can do.
+function bestiaryView(adv) {
+  const A = content(adv);
+  return Object.entries(adv.bestiary || {}).filter(([k]) => A.monsters[k]).map(([key, b]) => {
+    const M = A.monsters[key];
+    const tips = [];
+    if (M.type === 'undead') tips.push('Undead: silver weapons and radiant damage (Sacred Flame) hit hard.');
+    if (M.reassemble) tips.push('May pull itself back together after falling. Radiant damage stops it.');
+    if (M.fortitude) tips.push('May refuse to fall once. A critical hit or radiant damage finishes it.');
+    if (M.noSleep) tips.push('Can\'t be put to sleep.');
+    if (M.pack) tips.push('Pack tactics: hits harder while friends of its kind stand. Thin the pack first.');
+    if (M.poison) tips.push('Its attacks can poison: damage over a few turns.');
+    if (M.attacks > 1) tips.push(`Attacks ${M.attacks} times a turn.`);
+    if (M.burst) tips.push(`Every ${M.burst.every} turns unleashes ${M.burst.name} on the whole party (${M.burst.ability.toUpperCase()} save). Defend when it's warned.`);
+    if (M.summon) tips.push(`Calls ${A.monsters[M.summon.key].name}s for help at half health.`);
+    if (M.style === 'fire') tips.push('Attacks with fire from a distance.');
+    if (M.drop) tips.push(`Sometimes carries ${itemDef(A, M.drop.item).name.toLowerCase()}.`);
+    return {
+      key, name: M.name, type: M.type || 'creature', lore: M.lore || '', icon: icon(M.icon || key, 'skull'),
+      hp: M.hp, ac: M.ac, xp: M.xp, boss: (M.xp || 0) >= 200, seen: b.seen, defeated: b.defeated, tips,
+    };
+  }).sort((a, b) => a.xp - b.xp || a.name.localeCompare(b.name));
+}
+
 // ---------- player messages ----------
 function handle(room, me, isHost, msg) {
   const adv = room.adventure;
@@ -982,10 +1033,19 @@ function handle(room, me, isHost, msg) {
 
   if (msg.t === 'adv:reset') {
     if (!isHost) fail('Only the host can restart the adventure.');
-    const fresh = create(adv.id);
+    const fresh = create(adv.id, { difficulty: adv.difficulty });
     for (const [id, c] of Object.entries(adv.party)) fresh.party[id] = makeHero(c.name, c.cls);
     room.adventure = fresh;
     room.initiative = { list: [], current: null, round: 1 };
+    return;
+  }
+
+  if (msg.t === 'adv:difficulty') {
+    if (!isHost) fail('Only the host can change the difficulty.');
+    if (!DIFFICULTY[msg.level]) fail('Unknown difficulty.');
+    if (adv.combat) fail('Change it after the fight.');
+    adv.difficulty = msg.level;
+    log(adv, 'story', `The host sets the difficulty to ${DIFFICULTY[msg.level].name}.`);
     return;
   }
 
@@ -1224,6 +1284,10 @@ function view(room, meId) {
     actions,
     shop,
     coach, coachPrice: COACH_PRICE,
+    difficulty: adv.difficulty || 'normal',
+    difficulties: Object.entries(DIFFICULTY).map(([id, d]) => ({ id, name: d.name, desc: d.desc })),
+    stats: adv.stats || {},
+    bestiary: bestiaryView(adv),
     exits: adv.combat ? [] : pathsFrom(adv, adv.location).map((p) => ({ to: p.to, name: A.locations[p.to].name, ok: p.ok, locked: p.ok ? null : p.locked, visited: !!adv.visited[p.to], danger: A.locations[p.to].danger || 0 })),
     scene,
     world: {
@@ -1251,4 +1315,5 @@ function view(room, meId) {
   };
 }
 
-module.exports = { list, exists, create, handle, view, syncSheets, GameError, CLASSES, TALENTS, _giveXp: giveXp, _maybeEvent: maybeEvent };
+module.exports = {
+  DIFFICULTY, list, exists, create, handle, view, syncSheets, GameError, CLASSES, TALENTS, _giveXp: giveXp, _maybeEvent: maybeEvent };

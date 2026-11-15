@@ -156,3 +156,20 @@ test('only the DM can upload a map', async () => {
   r = await fetch(`${BASE}/..%2fserver.js`);
   assert.strictEqual(r.status, 404);
 });
+
+test('static files carry an ETag so browsers can reuse them', async () => {
+  const first = await fetch(`${BASE}/3d/core.js`);
+  assert.strictEqual(first.status, 200);
+  const etag = first.headers.get('etag');
+  assert.ok(etag, 'has an ETag');
+  await first.text();
+  const again = await fetch(`${BASE}/3d/core.js`, { headers: { 'If-None-Match': etag } });
+  assert.strictEqual(again.status, 304);
+});
+
+test('adventures can be created with a difficulty', async () => {
+  const res = await fetch(`${BASE}/api/rooms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'adventure', adventure: 'ashen-vale', difficulty: 'hard' }) });
+  assert.strictEqual(res.status, 200);
+  const { code } = await res.json();
+  assert.match(code, /^[A-Z0-9]{6}$/);
+});

@@ -60,6 +60,21 @@ function save() {
   if (!saveTimer) saveTimer = setTimeout(saveNow, 1000);
 }
 
+// When the server is full, forget the games that have gone longest without being played
+// (never one that someone is connected to).
+function pruneRooms() {
+  const idle = [...rooms.values()]
+    .filter((r) => !(sockets.get(r.code) || new Set()).size)
+    .sort((a, b) => (a.lastActive || a.createdAt) - (b.lastActive || b.createdAt));
+  for (const r of idle.slice(0, Math.max(1, Math.ceil(MAX_ROOMS * 0.1)))) {
+    removeMapFile(r.map && r.map.bg);
+    for (const url of Object.values(r.portraits || {})) removePortraitFile(url);
+    rooms.delete(r.code);
+    console.log(`Forgot old game ${r.code} to make room.`);
+  }
+  saveNow();
+}
+
 // ---------- helpers ----------
 const rid = (bytes = 6) => crypto.randomBytes(bytes).toString('base64url');
 const str = (v, max = 80) => String(v ?? '').slice(0, max);
@@ -86,11 +101,11 @@ function newCode() {
   return code;
 }
 
-function newRoom(mode = 'tabletop', adventureId = null) {
+function newRoom(mode = 'tabletop', adventureId = null, opts = {}) {
   return {
     code: newCode(),
     mode,
-    adventure: mode === 'adventure' ? adventure.create(adventureId) : null,
+    adventure: mode === 'adventure' ? adventure.create(adventureId, { difficulty: opts.difficulty }) : null,
     dmKey: rid(18),
     createdAt: Date.now(),
     players: {}, // secret browser id -> { id (public), name, isDM }
@@ -159,6 +174,7 @@ function viewFor(room, client) {
 }
 
 function broadcast(room) {
+  room.lastActive = Date.now();
   for (const ws of sockets.get(room.code) || []) {
     send(ws, { t: 'state', state: viewFor(room, ws.client) });
   }
@@ -485,12 +501,17 @@ const gzCache = new Map(); // file -> { mtime, data }
 function serveFile(res, file, cache, req) {
   fs.stat(file, (statErr, st) => {
     if (statErr || !st.isFile()) return json(res, 404, { error: 'Not found' });
+    // ETags let browsers keep files between visits and only re-download what changed
+    // (three.js and the 3D models are several megabytes).
+    const etag = `"${st.size.toString(36)}-${Math.floor(st.mtimeMs).toString(36)}"`;
     const headers = {
       'Content-Type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream',
       'Cache-Control': cache,
       'X-Content-Type-Options': 'nosniff',
+      ETag: etag,
       Vary: 'Accept-Encoding',
     };
+    if (req && req.headers['if-none-match'] === etag) { res.writeHead(304, headers); return res.end(); }
     const wantsGzip = req && /\bgzip\b/.test(req.headers['accept-encoding'] || '') && GZIP_TYPES.test(file);
     const cached = gzCache.get(file);
     if (wantsGzip && cached && cached.mtime === st.mtimeMs) {
@@ -519,12 +540,13 @@ const server = http.createServer(async (req, res) => {
     const p = url.pathname;
 
     if (req.method === 'POST' && p === '/api/rooms') {
-      if (rooms.size >= MAX_ROOMS) return json(res, 503, { error: 'This server has too many games. Delete data/rooms.json to start fresh.' });
+      if (rooms.size >= MAX_ROOMS) pruneRooms();
+      if (rooms.size >= MAX_ROOMS) return json(res, 503, { error: 'This server has too many games in use right now. Try again later.' });
       let opts = {};
       try { opts = JSON.parse((await readBody(req, 4096)).toString() || '{}'); } catch { opts = {}; }
       const mode = opts.mode === 'adventure' ? 'adventure' : 'tabletop';
       if (mode === 'adventure' && !adventure.exists(opts.adventure)) return json(res, 400, { error: 'Unknown adventure.' });
-      const room = newRoom(mode, opts.adventure);
+      const room = newRoom(mode, opts.adventure, { difficulty: String(opts.difficulty || '') });
       rooms.set(room.code, room);
       saveNow();
       return json(res, 200, { code: room.code, dmKey: room.dmKey });
@@ -601,7 +623,8 @@ const server = http.createServer(async (req, res) => {
 });
 
 // ---------- WebSockets ----------
-const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 64 * 1024 });
+// Game state is JSON that repeats a lot, so compress it on the wire.
+const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 64 * 1024, perMessageDeflate: { threshold: 1024, zlibDeflateOptions: { level: 6 } } });
 
 wss.on('connection', (ws) => {
   ws.client = null;

@@ -315,7 +315,7 @@
     setTimeout(() => s.remove(), 700);
   }
   function shakeScreen(big) {
-    if (reduced) return;
+    if (reduced || document.documentElement.classList.contains('calm')) return;
     const el = document.querySelector('#advStageWrap');
     if (!el) return;
     el.classList.remove('fx-screenshake', 'big');

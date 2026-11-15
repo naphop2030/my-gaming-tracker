@@ -832,3 +832,50 @@ select option { background: #141f63; }
 @media (prefers-reduced-motion: reduce) { .arrive.in .arrive-text > *, .arrive-art .scene-pan, .pin3d.todo::after { animation: none !important; } }
 .lf-snow { animation: lfSnow 9s linear infinite; }
 @keyframes lfSnow { from { transform: translate(0, 0); } 50% { transform: translate(calc(var(--dx, 40px) * .5 + 20px), 310px); } to { transform: translate(var(--dx, 40px), 640px); } }
+
+/* ---------- text size, calm mode ---------- */
+:root { --ts: 1; }
+.adv .log-place p, .adv .log-story p { font-size: calc(16px * var(--ts)); }
+.adv .log-line { font-size: calc(13.5px * var(--ts)); }
+.adv .mi { font-size: calc(15px * var(--ts)); }
+.adv .mi-sub { font-size: calc(12.5px * var(--ts)); }
+.adv .item-row p, .adv .quest p, .beast p, .beast-tips { font-size: calc(13.5px * var(--ts)); }
+.calm .scene-pan, .calm .scene-pan *, .calm .arrive.in .arrive-text > *, .calm .pin3d.todo::after { animation: none !important; }
+.calm .scene-life { display: none; }
+
+/* ---------- segmented choices (settings, title-screen difficulty) ---------- */
+.seg { display: inline-flex; border: 2px solid var(--win-edge); border-radius: 8px; overflow: hidden; flex: none; }
+.seg-b { background: rgba(0, 0, 40, .35); border: 0; color: var(--muted); padding: 6px 11px; font-weight: 700; font-size: 13px; cursor: pointer; }
+.seg-b + .seg-b { border-left: 1px solid rgba(255, 255, 255, .25); }
+.seg-b.on { background: linear-gradient(180deg, #ffd36a, #e0a83a); color: #2a1a00; text-shadow: none; }
+.seg-b:disabled { opacity: .45; cursor: default; }
+.diff-pick { display: flex; align-items: center; gap: 6px; margin: 2px 0 10px; flex-wrap: wrap; }
+.diff-label { font-size: 12px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: var(--gold); margin-right: 4px; }
+.diff-pick button { background: rgba(0, 0, 40, .35); border: 1px solid rgba(220, 228, 255, .45); color: var(--muted); border-radius: 999px; padding: 4px 12px; font-weight: 700; font-size: 13px; cursor: pointer; }
+.diff-pick button.on { background: linear-gradient(180deg, #ffd36a, #e0a83a); color: #2a1a00; border-color: #ffd36a; text-shadow: none; }
+
+/* ---------- bestiary ---------- */
+.records { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; margin-bottom: 8px; }
+.record { background: rgba(0, 0, 40, .3); border: 1px solid rgba(255, 255, 255, .18); border-radius: 8px; padding: 6px 10px; display: flex; flex-direction: column; }
+.record b { font-size: 20px; color: #fff; }
+.record small { font-size: 11px; color: var(--muted); font-weight: 700; letter-spacing: .4px; }
+.beast { background: rgba(0, 0, 40, .28); border: 1px solid rgba(255, 255, 255, .18); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+.beast.boss { border-color: rgba(255, 140, 90, .7); box-shadow: inset 0 0 0 1px rgba(255, 140, 90, .25); }
+.beast-head { display: flex; align-items: center; gap: 10px; }
+.beast-ico { width: 34px; height: 34px; flex: none; }
+.beast-head small { display: block; color: var(--muted); font-size: 12px; text-transform: capitalize; }
+.beast-count { font-size: 12px; font-weight: 800; color: #9cf2a6; white-space: nowrap; }
+.beast.undefeated .beast-count { color: var(--faint); }
+.beast-lore { margin: 6px 0 4px; font-style: italic; color: #e4eaff; }
+.beast-tips { margin: 4px 0 0; padding-left: 18px; color: var(--muted); }
+.beast-tips li { margin: 2px 0; }
+
+/* arrival card sits above everything while it shows */
+.arrive { z-index: 60; }
+
+/* phones: keep the Command window within reach */
+@media (max-width: 860px) {
+  .adv-stagewrap { height: 32vh; min-height: 200px; }
+  .story { max-height: 28vh; }
+}
+.adv .cls-menu .mi { font-size: calc(17px * var(--ts)); }

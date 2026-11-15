@@ -21,6 +21,12 @@
     <label class="field name-field">Your name
       <input id="lobbyName" maxlength="30" placeholder="e.g. Mira the Bold" autocomplete="nickname">
     </label>
+    <div class="diff-pick" id="diffPick" role="radiogroup" aria-label="Difficulty for new adventures">
+      <span class="diff-label">Difficulty</span>
+      <button type="button" data-diff="story" role="radio">Story</button>
+      <button type="button" data-diff="normal" role="radio">Normal</button>
+      <button type="button" data-diff="hard" role="radio">Hard</button>
+    </div>
     <div class="menu lobby-menu" id="lobbyMenu" data-prio="1">
       <div id="recentList" class="adv-list"></div>
       <div id="advList" class="adv-list"></div>
@@ -107,6 +113,7 @@
             <div data-page="items"></div>
             <div data-page="status"></div>
             <div data-page="quests"></div>
+            <div data-page="bestiary"></div>
             <div data-page="map">
               <div class="page-head"><h2>World map</h2><p class="hint">Places next to you glow. Click one to travel there; dashed roads are locked for now.</p></div>
               <div class="board3d-wrap" id="advBoard3dWrap" hidden>

@@ -348,3 +348,46 @@ test('beyond the Vale: goblins, the Mere Hag, Frostmane and Warlord Grukk', () =
   assert.strictEqual(room.adventure.ended.title, 'Heroes of the Mere');
   assert.ok(Object.values(room.adventure.party).every((c) => c.level >= 4), 'the new region levels heroes up');
 });
+
+test('difficulty scales monsters and defeat; the host can change it', () => {
+  const story = adventure.create('ashen-vale', { difficulty: 'story' });
+  const hard = adventure.create('ashen-vale', { difficulty: 'hard' });
+  assert.strictEqual(story.difficulty, 'story');
+  assert.strictEqual(adventure.create('ashen-vale', { difficulty: 'nonsense' }).difficulty, 'normal');
+  const hpFor = (adv) => {
+    const room = { adventure: adv, initiative: { list: [], current: null, round: 1 }, sheets: {} };
+    adventure.handle(room, { id: 'a', name: 'A' }, false, { t: 'adv:create', name: 'A', cls: 'fighter' });
+    adventure.handle(room, { id: 'b', name: 'B' }, false, { t: 'adv:create', name: 'B', cls: 'fighter' });
+    room.adventure.scene = null;
+    room.adventure.location = 'old-road';
+    require('../adventures/ashen-vale').scenes.__t = { title: '', text: '', choices: [{ label: 'x', combat: ['zombie'] }] };
+    room.adventure.scene = '__t';
+    adventure.handle(room, { id: 'a', name: 'A' }, false, { t: 'adv:choose', index: 0 });
+    return room;
+  };
+  const rs = hpFor(story);
+  const rh = hpFor(hard);
+  assert.ok(rs.adventure.combat.monsters[0].maxHp < rh.adventure.combat.monsters[0].maxHp);
+  assert.ok(v(rh, 'a').bestiary.some((m) => m.key === 'zombie' && m.tips.some((t) => /silver/i.test(t))), 'bestiary records the zombie with tips');
+  // only the host may change difficulty, and not mid-fight
+  assert.throws(() => act(rs, 'a', { t: 'adv:difficulty', level: 'hard' }), /host/);
+  assert.throws(() => adventure.handle(rs, { id: 'a', name: 'A' }, true, { t: 'adv:difficulty', level: 'hard' }), /after the fight/);
+  fight(rs);
+  adventure.handle(rs, { id: 'a', name: 'A' }, true, { t: 'adv:difficulty', level: 'hard' });
+  assert.strictEqual(v(rs, 'a').difficulty, 'hard');
+  assert.ok(v(rs, 'a').stats.wins >= 1 || v(rs, 'a').stats.defeats >= 1);
+  // story mode keeps your gold on defeat
+  const room = newGame([['p', 'P', 'wizard']]);
+  room.adventure.difficulty = 'story';
+  room.adventure.gold = 40;
+  room.adventure.location = 'greyfen';
+  require('../adventures/ashen-vale').scenes.__t = { title: '', text: '', choices: [{ label: 'x', combat: ['grukk'] }] };
+  room.adventure.scene = '__t';
+  act(room, 'p', { t: 'adv:choose', index: 0 });
+  for (let i = 0; i < 200 && room.adventure.combat; i++) {
+    const cur = room.initiative.list.find((e) => e.id === room.initiative.current);
+    act(room, cur.owner, { t: 'adv:act', action: 'defend' });
+  }
+  assert.strictEqual(room.adventure.location, 'thornwick');
+  assert.strictEqual(room.adventure.gold, 40);
+});

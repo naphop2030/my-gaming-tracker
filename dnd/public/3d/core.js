@@ -227,6 +227,8 @@ export class View {
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.canvas = this.renderer.domElement;
     this.canvas.className = 'view3d';
+    // If the graphics driver gives up (it happens on weak GPUs), tell the page so it can fall back to 2D.
+    this.canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); this.running = false; window.dispatchEvent(new Event('three-lost')); });
     container.append(this.canvas);
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(40, 1, 0.1, 400);

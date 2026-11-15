@@ -25,7 +25,21 @@
 
   // ---------- settings ----------
   const use3d = () => !!window.Board3D && store.get('dnd.3d') !== '0';
+  // Look settings: calm mode (less motion) and text size, applied to the whole page.
+  const calm = () => store.get('dnd.calm') === '1';
+  function applyLook() {
+    document.documentElement.classList.toggle('calm', calm());
+    document.documentElement.style.setProperty('--ts', store.get('dnd.textSize') || '1');
+  }
+  applyLook();
   window.addEventListener('three-ready', () => { nowKey = ''; render(); });
+  window.addEventListener('three-lost', () => {
+    if (store.get('dnd.3d') === '0') return;
+    store.set('dnd.3d', '0');
+    TT.toast('3D graphics stopped working on this computer, so the game switched to 2D. You can turn 3D back on in Settings.', true);
+    nowKey = '';
+    render();
+  });
 
   // ---------- state ----------
   let targetId = null;
@@ -495,7 +509,9 @@
         onClick: () => { if (confirm('Start the adventure over? Heroes keep their names and classes but go back to level 1.')) TT.send({ t: 'adv:reset' }); },
       }));
     }
-    return { title: A.ended.title, text: 'You finished the main quest! The Vale is still open: explore, finish side quests, or start again.', items };
+    const S = A.stats || {};
+    const recap = [`${S.wins || 0} battles won`, `${S.kills || 0} foes defeated`, `${S.crits || 0} critical hits`, `${S.gold || 0} gold earned`, `${(A.bestiary || []).length} kinds of creature met`].join(' · ');
+    return { title: A.ended.title, text: `A chapter of your story ends here. ${recap}. The world is still open: explore, finish other quests, fill the Bestiary, or start again.`, items };
   }
 
   function createCmd() {
@@ -743,7 +759,7 @@
 
   // ---------- main menu ----------
   const PAGES = [
-    ['items', 'Items', 'potion'], ['status', 'Status', 'fighter'], ['quests', 'Quests', 'journal'], ['map', 'Map', 'map'],
+    ['items', 'Items', 'potion'], ['status', 'Status', 'fighter'], ['quests', 'Quests', 'journal'], ['bestiary', 'Bestiary', 'skull'], ['map', 'Map', 'map'],
     ['chat', 'Chat', 'inn'], ['players', 'Players', 'level'], ['settings', 'Settings', 'd20'], ['help', 'How to play', 'choir-note'],
   ];
 
@@ -787,7 +803,7 @@
     }
     $$('#advMenuPage > [data-page]').forEach((p) => { p.hidden = p.dataset.page !== menuPage; });
     const page = $(`#advMenuPage > [data-page="${menuPage}"]`);
-    ({ items: pageItems, status: pageStatus, quests: pageQuests, map: pageMap, chat: pageChat, players: pagePlayers, settings: pageSettings, help: pageHelp })[menuPage](page, A);
+    ({ items: pageItems, status: pageStatus, quests: pageQuests, bestiary: pageBestiary, map: pageMap, chat: pageChat, players: pagePlayers, settings: pageSettings, help: pageHelp })[menuPage](page, A);
   }
 
   const pageHead = (title, sub) => { const h = el('div', 'page-head'); h.append(el('h2', '', title)); if (sub) h.append(el('p', 'hint', sub)); return h; };
@@ -902,6 +918,35 @@
       return d;
     });
     page.replaceChildren(pageHead('Quests', 'Talk to people to find more.'), ...(rows.length ? rows : [el('p', 'hint', 'No quests yet. Talk to people!')]));
+  }
+
+  // Bestiary: every creature you've met (a Pokédex for monsters), plus the party's records.
+  function pageBestiary(page, A) {
+    const S = A.stats || {};
+    const rec = el('div', 'records');
+    for (const [k, label] of [['wins', 'Battles won'], ['kills', 'Foes defeated'], ['crits', 'Critical hits'], ['dealt', 'Damage dealt'], ['taken', 'Damage taken'], ['downs', 'Heroes knocked out'], ['potions', 'Potions drunk'], ['gold', 'Gold earned'], ['journeys', 'Journeys']]) {
+      const c = el('div', 'record');
+      c.append(el('b', '', String(S[k] || 0)), el('small', '', label));
+      rec.append(c);
+    }
+    const list = A.bestiary || [];
+    const cards = list.map((m) => {
+      const d = el('div', `beast${m.boss ? ' boss' : ''}${m.defeated ? '' : ' undefeated'}`);
+      const head = el('div', 'beast-head');
+      head.append(icon(m.icon, 'beast-ico'));
+      const t = el('div', 'grow');
+      t.append(el('b', '', m.name), el('small', '', `${m.boss ? 'Boss · ' : ''}${m.type} · HP ${m.hp} · AC ${m.ac} · ${m.xp} XP`));
+      head.append(t, el('span', 'beast-count', m.defeated ? `Defeated ×${m.defeated}` : 'Not yet defeated'));
+      d.append(head);
+      if (m.lore) d.append(el('p', 'beast-lore', m.lore));
+      if (m.tips.length) { const ul = el('ul', 'beast-tips'); for (const tip of m.tips) ul.append(el('li', '', tip)); d.append(ul); }
+      return d;
+    });
+    page.replaceChildren(
+      pageHead('Bestiary', list.length ? `${list.length} kind${list.length === 1 ? '' : 's'} of creature met. Can you find them all?` : 'Creatures you meet will be recorded here.'),
+      el('h3', '', 'Party records'), rec,
+      el('h3', '', 'Creatures'), ...(cards.length ? cards : [el('p', 'hint', 'No creatures met yet. Venture out of town!')]),
+    );
   }
 
   function pageMap(page, A) {
@@ -1024,6 +1069,22 @@
     );
   }
 
+  function choiceRow(label, options, current, set, hint, disabled) {
+    const r = el('div', 'setting');
+    const t = el('div', 'grow');
+    t.append(el('b', '', label));
+    if (hint) t.append(el('p', 'hint', hint));
+    const seg = el('div', 'seg');
+    for (const [v, name] of options) {
+      const b = button(name, `seg-b${String(v) === String(current) ? ' on' : ''}`, () => { if (!disabled) { set(v); setTimeout(render, 50); } });
+      b.disabled = !!disabled && String(v) !== String(current);
+      b.setAttribute('aria-pressed', String(String(v) === String(current)));
+      seg.append(b);
+    }
+    r.append(t, seg);
+    return r;
+  }
+
   function pageSettings(page) {
     const toggle = (label, on, set, hint) => {
       const r = el('div', 'setting');
@@ -1052,6 +1113,14 @@
     if (window.Board3D) rows.push(toggle('3D graphics', use3d(), (v) => { store.set('dnd.3d', v ? '1' : '0'); nowKey = ''; }, '3D world map, battles and dice. Turn off on slower computers.'));
     rows.push(toggle('Fast battle effects', FX.speed >= 2, (v) => FX.setSpeed(v ? 2 : 1), 'Plays dice, hits and banners twice as fast.'));
     rows.push(toggle('Auto-switch players in battle', TT.followTurns, (v) => TT.setFollowTurns(v), 'When several players share this screen.'));
+    rows.push(toggle('Calm mode', calm(), (v) => { store.set('dnd.calm', v ? '1' : '0'); applyLook(); }, 'Less motion: no screen shake, still pictures and fewer moving effects.'));
+    rows.push(choiceRow('Text size', [['1', 'Normal'], ['1.15', 'Large'], ['1.3', 'Larger']], store.get('dnd.textSize') || '1', (v) => { store.set('dnd.textSize', v); applyLook(); }, 'For the story, menus and item descriptions.'));
+    const A = TT.S && TT.S.adventure;
+    if (A && A.difficulties) {
+      const host = TT.me.isDM;
+      const cur = A.difficulties.find((d) => d.id === A.difficulty);
+      rows.push(choiceRow('Difficulty', A.difficulties.map((d) => [d.id, d.name]), A.difficulty, (v) => TT.send({ t: 'adv:difficulty', level: v }), `${cur ? cur.desc : ''}${host ? '' : ' Only the host can change this.'}`, !host));
+    }
     page.replaceChildren(pageHead('Settings'), ...rows);
   }
 

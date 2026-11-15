@@ -84,6 +84,15 @@
   }
   $('#createBtn').onclick = () => createGame({ mode: 'tabletop' });
 
+  // Difficulty for new adventures (the host can change it later in Settings).
+  const DIFF_HELP = { story: 'Story: gentler fights and no gold lost on defeat.', normal: 'Normal: the adventure as designed.', hard: 'Hard: tougher monsters that hit harder, and 20% more XP.' };
+  function paintDiff() {
+    const cur = store.get('dnd.difficulty') || 'normal';
+    for (const b of document.querySelectorAll('#diffPick button')) { b.classList.toggle('on', b.dataset.diff === cur); b.setAttribute('aria-checked', String(b.dataset.diff === cur)); b.title = DIFF_HELP[b.dataset.diff]; }
+  }
+  for (const b of document.querySelectorAll('#diffPick button')) b.onclick = () => { store.set('dnd.difficulty', b.dataset.diff); paintDiff(); $('#lobbyHelp').textContent = DIFF_HELP[b.dataset.diff]; };
+  paintDiff();
+
   // Title-screen menu: adventures the server knows about, then Join and Free Tabletop.
   const lobbyMenu = $('#lobbyMenu');
   const showHelp = (item) => { $('#lobbyHelp').textContent = (item && item.dataset.help) || ''; };
@@ -93,7 +102,7 @@
       const b = el('button', 'mi', `New Adventure: ${a.title}`);
       b.type = 'button';
       b.dataset.help = `${a.blurb} The game is the Dungeon Master, so everyone plays a hero.`;
-      b.onclick = () => createGame({ mode: 'adventure', adventure: a.id });
+      b.onclick = () => createGame({ mode: 'adventure', adventure: a.id, difficulty: store.get('dnd.difficulty') || 'normal' });
       return b;
     }));
     window.Menus.init(lobbyMenu, false);
