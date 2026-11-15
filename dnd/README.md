@@ -38,7 +38,7 @@ The included adventure is **The Ashen Vale**: 8 locations, a main quest, 3 side 
 
 The adventure screen uses classic RPG-style windows:
 
-- **Scene** (top): the place you're in, or the battle in 3D. The **Enemies** window shows in fights.
+- **Scene** (top): the place you're in, or the battle in 3D. The **Enemies** window shows in fights. The pictures are alive: they drift slowly, and each place has its own moving details: chimney smoke and lit windows in the village, birds and clouds overhead, fireflies and falling leaves in the woods, wisps over the marsh, a campfire throwing sparks at the bandit tower, dripping water in the crypt, and crows circling the abbey's glowing belfry. Each place has its own colours too. (If your system is set to reduce motion, the pictures stay still.)
 - **Story** window: what's happening.
 - **Command** window: what you can do right now. Submenus like **Travel ▸**, **Skills ▸** and **Items ▸** open in place, and **◀ Back** returns.
 - **Party** window: everyone's HP. The ▶ marks whose turn it is; click a hero to switch players on a shared screen.
@@ -61,7 +61,7 @@ Icons are by Lorc, Delapouite, Skoll and other artists at game-icons.net (CC BY 
 
 With a reasonably modern browser, adventure mode is in 3D:
 
-- **3D world board:** the World map tab is a tabletop of hex tiles with a little diorama for each place: the village, the forest, the bandit tower, the marsh, the crypt and the abbey. Your party's miniature walks the stepping-stone roads between them. Unexplored land stays dark until you learn about it. Drag to turn the board, scroll or pinch to zoom, and click a glowing place to travel.
+- **3D world board:** the World map is a hex-tile tabletop lying on a wooden table, with candles flickering, dice and gold coins scattered around it. Mountains ring the edge of the board, forests grow in clumps and the grass changes from lush to dry in patches. Each place has a little diorama: the village (with smoking chimneys), the forest, the bandit tower, the marsh, the crypt and the abbey. Your party's miniature walks the stepping-stone roads between them. Unexplored land stays dark under drifting mist, birds circle overhead and the marsh water glints. Drag to turn the board, scroll or pinch to zoom, and click a glowing place to travel.
 - **3D battles:** fights play out on an arena dressed like the place you're in, with the place's painting as the backdrop and flickering torches. The camera sweeps in when a fight starts, pushes in on big hits and circles the party when you win. A bouncing arrow marks whose turn it is, a reticle marks your target, and monsters have HP bars over their heads. Hits freeze for a split second and knock fighters back, with slash trails. Spells have their own effects: fire bolts with trails, curving magic missiles, a cone of flame for Burning Hands and an exploding Fireball. Status effects show too: Zzz for sleep, bubbles for poison, circling stars for stun, a golden aura for Bless, a glowing hammer for Spiritual Weapon, a fire swirl when the boss charges, and faded heroes when they hide. Fallen monsters crumble to ash, and confetti flies when you win. Click a monster to target it.
 - **3D dice:** every skill check rolls a real d20 that lands on your number.
 - **Hero creation:** shows a turning model of the class you pick.

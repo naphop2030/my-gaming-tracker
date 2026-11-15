@@ -26,6 +26,20 @@
     clear: { top: '#203a5c', bottom: '#e8b583', glow: '#ffe0a8', far: '#5f7189', mid: '#3e4c5e', near: '#252f3b', front: '#11161c', light: '#ffd27a', fog: '#c9d3df', water: '#55708c' },
   };
 
+  // Each place gets its own color grading on top of the mood: green woods, a teal marsh,
+  // a red dusk over the bandit tower, an ominous glow at the abbey.
+  const TINTS = {
+    'sc-wood': { ash: { far: '#4f5a46', mid: '#33402f', near: '#1f281d', glow: '#c9b46a', bottom: '#7d7a58', fog: '#9aa088' }, clear: { far: '#4c6a5a', mid: '#2f4a3c', near: '#1c2e24', bottom: '#a8c79a', glow: '#fff0b0', fog: '#c8dccb' } },
+    'sc-fen': { ash: { far: '#5a6058', mid: '#3c443c', water: '#46504a', bottom: '#8a8a70', glow: '#c8d890', fog: '#a8b098' }, clear: { far: '#58808a', water: '#4d7a88', bottom: '#b8d4c8', fog: '#d0e4e4' } },
+    'sc-tower': { ash: { bottom: '#a8604a', glow: '#ff8a50', far: '#6e4c40', mid: '#4b342c' }, clear: { bottom: '#f0a070', glow: '#ffd090' } },
+    'sc-hollow': { ash: { bottom: '#a08a60', far: '#6e6448', mid: '#4a4632', near: '#2c2a1e' }, clear: { bottom: '#e8d090', far: '#6a7a60', mid: '#45503e' } },
+    'sc-abbey': { ash: { top: '#1e1418', bottom: '#8a3a2a', glow: '#ff6a3a', far: '#5a3a34', mid: '#3a2622', near: '#24171a' }, clear: { bottom: '#f0c890', glow: '#fff0c0' } },
+  };
+
+  // While drawing a scene, remember where its lights are so the "life" layer can make them flicker.
+  let lampLog = null;
+  let chimneyLog = null;
+
   // ---------- building blocks ----------
   function defs(id, p) {
     return `<defs>
@@ -86,13 +100,19 @@
   }
   const fog = (id, y, color, opacity = 0.35, h = 60) =>
     `<ellipse cx="${W / 2}" cy="${y}" rx="${W * 0.7}" ry="${h}" fill="${color}" opacity="${opacity}" filter="url(#${id}-blur)"/>`;
-  const lamp = (id, x, y, r = 40) => `<circle cx="${x}" cy="${y}" r="${r}" fill="url(#${id}-lamp)"/>`;
+  const lamp = (id, x, y, r = 40) => {
+    if (lampLog) lampLog.push([x, y, r]);
+    return `<circle cx="${x}" cy="${y}" r="${r}" fill="url(#${id}-lamp)"/>`;
+  };
 
   function house(id, x, y, w, h, color, light, r, opts = {}) {
     const roof = h * (0.7 + r() * 0.3);
     let s = `<path d="M${f(x - 6)} ${f(y - h)} L${f(x + w / 2)} ${f(y - h - roof)} L${f(x + w + 6)} ${f(y - h)} Z" fill="${color}"/>`;
     s += `<rect x="${x}" y="${f(y - h)}" width="${w}" height="${h}" fill="${color}"/>`;
-    if (r() < 0.8) s += `<rect x="${f(x + w * 0.7)}" y="${f(y - h - roof * 0.9)}" width="${f(w * 0.12)}" height="${f(roof * 0.6)}" fill="${color}"/>`;
+    if (r() < 0.8) {
+      s += `<rect x="${f(x + w * 0.7)}" y="${f(y - h - roof * 0.9)}" width="${f(w * 0.12)}" height="${f(roof * 0.6)}" fill="${color}"/>`;
+      if (chimneyLog) chimneyLog.push([f(x + w * 0.76), f(y - h - roof * 0.95)]);
+    }
     if (opts.windows !== false) {
       const wx = x + w * (0.2 + r() * 0.4);
       const wy = y - h * 0.65;
@@ -102,7 +122,7 @@
   }
 
   function wrap(id, mood, body) {
-    const p = PALETTES[mood] || PALETTES.ash;
+    const p = { ...(PALETTES[mood] || PALETTES.ash), ...((TINTS[id] || {})[mood] || {}) };
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${defs(id, p)}${body(p)}<rect width="${W}" height="${H}" fill="url(#${id}-shade)"/></svg>`;
   }
 
@@ -302,5 +322,88 @@
     return sky('sc-def') + ridge(r, 320, 50, 40, p.far) + ridge(r, 400, 40, 20, p.mid, { phase: 2 }) + forest(r, 20, 430, 470, 80, 140, p.near, 'round') + ridge(r, 500, 20, 10, p.front, { phase: 4 });
   });
 
+
+  // ---------- the "life" layer ----------
+  // A second, transparent SVG laid over the painting with the moving bits: drifting clouds,
+  // birds, chimney smoke, flickering lights, fireflies, wisps, falling leaves, sparks.
+  // It's kept separate so the (expensive, blurred) painting never has to be redrawn.
+  const LIFE = {
+    thornwick: { clouds: 3, birds: 2, smoke: 'chimneys', flicker: true },
+    'old-road': { clouds: 4, birds: 3, dust: 14 },
+    whisperwood: { shafts: [[300, 0], [560, 0], [820, 0], [1080, 0], [1340, 0]], fireflies: 16, leaves: 10, motes: 18 },
+    hollow: { clouds: 2, birds: 1, smoke: [[905, 200]], flicker: [[760, 395, 50]], fireflies: 9, leaves: 5 },
+    watchtower: { clouds: 2, birds: 2, crows: true, smoke: [[770, 400]], embers: [770, 430], flicker: [[770, 420, 120]] },
+    greyfen: { clouds: 2, wisps: [[720, 330], [860, 300], [1010, 345], [420, 360], [1240, 320]], shimmer: 18, fireflies: 6 },
+    crypt: { flicker: [[300, 451, 46], [460, 451, 46], [1150, 451, 46], [1310, 451, 46], [760, 411, 46], [840, 411, 46]], motes: 26, drips: [[260, 0], [700, 0], [1120, 0], [1460, 0]], shimmer: 6, shimmerY: 545 },
+    abbey: { clouds: 3, crows: true, pulse: [800, 215, 90], embers: [800, 180], flicker: true },
+    default: { clouds: 3, birds: 2 },
+  };
+
+  function life(sceneId, mood) {
+    const draw = SCENES[sceneId] ? sceneId : 'default';
+    const cfg = LIFE[draw] || LIFE.default;
+    lampLog = [];
+    chimneyLog = [];
+    SCENES[draw](mood);
+    const lamps = lampLog;
+    const chimneys = chimneyLog;
+    lampLog = chimneyLog = null;
+    const p = PALETTES[mood] || PALETTES.ash;
+    const r = rng(sceneId.length * 31 + 5);
+    const ash = mood !== 'clear';
+    const st = (o) => Object.entries(o).map(([k, v]) => `${k}:${typeof v === 'number' ? f(v) + (k.startsWith('animation') ? 's' : 'px') : v}`).join(';');
+    let s = '';
+    for (let i = 0; i < (cfg.clouds || 0); i++) {
+      const y = 50 + r() * 170;
+      const w = 260 + r() * 260;
+      s += `<g class="lf-drift" style="${st({ 'animation-duration': 90 + r() * 80, 'animation-delay': -r() * 170 })}"><ellipse cx="0" cy="${f(y)}" rx="${f(w)}" ry="${f(w * 0.12)}" fill="url(#lf-cloud)"/><ellipse cx="${f(w * 0.3)}" cy="${f(y - w * 0.06)}" rx="${f(w * 0.5)}" ry="${f(w * 0.1)}" fill="url(#lf-cloud)"/></g>`;
+    }
+    const birdColor = ash ? '#1a120e' : '#151a22';
+    const flock = (n, crows) => {
+      let g = '';
+      const y = 90 + r() * 140;
+      const dur = (crows ? 40 : 28) + r() * 20;
+      const delay = -r() * dur;
+      const rev = r() < 0.5;
+      for (let k = 0; k < n; k++) {
+        const ox = k * (22 + r() * 14);
+        const oy = (k % 2 ? 1 : -1) * k * 7 + r() * 10;
+        const sc = crows ? 1.5 : 0.8 + r() * 0.4;
+        g += `<g transform="translate(${f(ox)} ${f(y + oy)}) scale(${f(sc)})"><g class="lf-bob" style="${st({ 'animation-delay': -r() * 3 })}"><path class="lf-flap" style="${st({ 'animation-duration': (crows ? 0.9 : 0.45) + r() * 0.3, 'animation-delay': -r() })}" d="M-10 0 Q -5 -6 0 0 Q 5 -6 10 0" stroke="${birdColor}" stroke-width="2.4" fill="none" stroke-linecap="round"/></g></g>`;
+      }
+      return `<g class="lf-fly${rev ? ' rev' : ''}" style="${st({ 'animation-duration': dur, 'animation-delay': delay })}">${g}</g>`;
+    };
+    for (let i = 0; i < (cfg.birds || 0); i++) s += flock(3 + Math.floor(r() * 4), false);
+    if (cfg.crows) s += `<g class="lf-circle" style="transform-origin:800px 120px">${[0, 1, 2].map((k) => `<g transform="translate(${f(800 + Math.cos(k * 2.1) * (90 + k * 30))} ${f(120 + Math.sin(k * 2.1) * 30)}) scale(1.3)"><path class="lf-flap" style="${st({ 'animation-duration': 0.8 + k * 0.15 })}" d="M-10 0 Q -5 -6 0 0 Q 5 -6 10 0" stroke="${birdColor}" stroke-width="2.6" fill="none" stroke-linecap="round"/></g>`).join('')}</g>`;
+    if (cfg.shafts) for (const [x] of cfg.shafts) s += `<path class="lf-pulse" style="${st({ 'animation-duration': 6 + r() * 5, 'animation-delay': -r() * 8 })}" d="M${x} 0 L${x + 70} 0 L${x + 280} ${H} L${x + 150} ${H} Z" fill="${p.glow}" opacity=".06"/>`;
+    const lights = cfg.flicker === true ? lamps : cfg.flicker || [];
+    for (const [x, y, rad] of lights) s += `<circle class="lf-flicker" style="${st({ 'animation-duration': 1.6 + r() * 2.2, 'animation-delay': -r() * 3 })}" cx="${x}" cy="${y}" r="${f(rad * 1.25)}" fill="url(#lf-lamp)"/>`;
+    const smoke = cfg.smoke === 'chimneys' ? chimneys.filter((_, i) => i % 2 === 0) : cfg.smoke || [];
+    for (const [x, y] of smoke) {
+      for (let k = 0; k < 4; k++) s += `<circle class="lf-smoke" style="${st({ 'animation-duration': 7, 'animation-delay': -k * 1.75 - r() })}" cx="${x}" cy="${y}" r="18" fill="url(#lf-smoke)"/>`;
+    }
+    if (cfg.pulse) s += `<circle class="lf-glow" cx="${cfg.pulse[0]}" cy="${cfg.pulse[1]}" r="${cfg.pulse[2]}" fill="url(#lf-${ash ? 'ember' : 'lamp'})"/>`;
+    if (cfg.embers) for (let k = 0; k < 14; k++) s += `<circle class="lf-ember" style="${st({ 'animation-duration': 2.5 + r() * 2.5, 'animation-delay': -r() * 5, '--dx': (r() - 0.5) * 120 + 'px' })}" cx="${f(cfg.embers[0] + (r() - 0.5) * 40)}" cy="${cfg.embers[1]}" r="${f(1.5 + r() * 1.8)}" fill="#ffc070"/>`;
+    for (let k = 0; k < (cfg.fireflies || 0); k++) {
+      const x = r() * W, y = 300 + r() * 260;
+      s += `<g class="lf-wander w${k % 3}" style="${st({ 'animation-duration': 9 + r() * 9, 'animation-delay': -r() * 18 })}"><circle class="lf-blink" style="${st({ 'animation-duration': 1.5 + r() * 2.5, 'animation-delay': -r() * 3 })}" cx="${f(x)}" cy="${f(y)}" r="9" fill="url(#lf-fly)"/></g>`;
+    }
+    for (const [x, y] of cfg.wisps || []) s += `<g class="lf-wander w${Math.floor(r() * 3)}" style="${st({ 'animation-duration': 12 + r() * 8, 'animation-delay': -r() * 20 })}"><circle class="lf-blink" style="${st({ 'animation-duration': 3 + r() * 2 })}" cx="${x}" cy="${y}" r="34" fill="url(#lf-wisp)"/><circle cx="${x}" cy="${y}" r="4" fill="#eaf8ff"/></g>`;
+    for (let k = 0; k < (cfg.leaves || 0); k++) s += `<ellipse class="lf-fall" style="${st({ 'animation-duration': 9 + r() * 7, 'animation-delay': -r() * 16, '--dx': (r() - 0.3) * 260 + 'px' })}" cx="${f(r() * W)}" cy="-20" rx="6" ry="3" fill="${ash ? '#8a6a3a' : '#c08a3a'}"/>`;
+    for (let k = 0; k < (cfg.motes || 0); k++) s += `<circle class="lf-mote" style="${st({ 'animation-duration': 14 + r() * 14, 'animation-delay': -r() * 28 })}" cx="${f(r() * W)}" cy="${f(100 + r() * 420)}" r="${f(1.2 + r() * 1.6)}" fill="${p.light}" opacity=".5"/>`;
+    for (let k = 0; k < (cfg.dust || 0); k++) s += `<circle class="lf-dust" style="${st({ 'animation-duration': 6 + r() * 6, 'animation-delay': -r() * 12 })}" cx="-20" cy="${f(420 + r() * 170)}" r="${f(2 + r() * 3)}" fill="${p.fog}" opacity=".35"/>`;
+    for (let k = 0; k < (cfg.shimmer || 0); k++) s += `<rect class="lf-shimmer" style="${st({ 'animation-duration': 3 + r() * 4, 'animation-delay': -r() * 6 })}" x="${f(r() * W)}" y="${f((cfg.shimmerY || 395) + r() * (cfg.shimmerY ? 45 : 180))}" width="${f(40 + r() * 140)}" height="2" fill="${p.light}"/>`;
+    for (const [x] of cfg.drips || []) s += `<circle class="lf-drip" style="${st({ 'animation-duration': 2.5 + r() * 3, 'animation-delay': -r() * 4 })}" cx="${x}" cy="8" r="2.5" fill="#9ab4bc"/>`;
+    return `<svg class="scene-life" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs>
+      <radialGradient id="lf-cloud"><stop offset="0" stop-color="${p.fog}" stop-opacity=".22"/><stop offset="1" stop-color="${p.fog}" stop-opacity="0"/></radialGradient>
+      <radialGradient id="lf-smoke"><stop offset="0" stop-color="${ash ? '#8a7a6e' : '#c4c8cc'}" stop-opacity=".85"/><stop offset="1" stop-color="${ash ? '#8a7a6e' : '#c4c8cc'}" stop-opacity="0"/></radialGradient>
+      <radialGradient id="lf-lamp"><stop offset="0" stop-color="${p.light}" stop-opacity=".45"/><stop offset="1" stop-color="${p.light}" stop-opacity="0"/></radialGradient>
+      <radialGradient id="lf-ember"><stop offset="0" stop-color="#ff5a20" stop-opacity=".55"/><stop offset="1" stop-color="#ff5a20" stop-opacity="0"/></radialGradient>
+      <radialGradient id="lf-fly"><stop offset="0" stop-color="#f4ffb0" stop-opacity="1"/><stop offset=".25" stop-color="#d8f070" stop-opacity=".6"/><stop offset="1" stop-color="#d8f070" stop-opacity="0"/></radialGradient>
+      <radialGradient id="lf-wisp"><stop offset="0" stop-color="#d8f4ff" stop-opacity=".8"/><stop offset=".3" stop-color="#8ad0ff" stop-opacity=".35"/><stop offset="1" stop-color="#8ad0ff" stop-opacity="0"/></radialGradient>
+    </defs>${s}</svg>`;
+  }
+
   window.SCENES = SCENES;
+  window.SCENE_LIFE = life;
 })();

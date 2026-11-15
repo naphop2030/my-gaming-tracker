@@ -175,7 +175,10 @@
         box.replaceChildren(img);
       } else {
         const draw = (window.SCENES && (window.SCENES[A.location.scene] || window.SCENES.default)) || null;
-        box.innerHTML = draw ? draw(mood) : ''; // our own generated SVG, no user content
+        const sceneId = window.SCENES && window.SCENES[A.location.scene] ? A.location.scene : 'default';
+        const lifeSvg = window.SCENE_LIFE ? window.SCENE_LIFE(sceneId, mood) : '';
+        // our own generated SVG, no user content; the painting slowly pans, the life layer moves on top
+        box.innerHTML = draw ? `<div class="scene-pan">${draw(mood)}${lifeSvg}</div>` : '';
       }
       requestAnimationFrame(() => box.classList.add('show'));
     }
@@ -694,6 +697,7 @@
     menuOpen = true;
     $('#advMenu').hidden = false;
     if (weather) weather.pause(true); // hidden behind the menu anyway
+    $('#adventure').classList.add('menu-open');
     FX.sfx('open');
     render();
   }
@@ -701,6 +705,7 @@
     menuOpen = false;
     $('#advMenu').hidden = true;
     if (weather) weather.pause(false);
+    $('#adventure').classList.remove('menu-open');
     $('#advMenuList').dataset.built = '';
     nowKey = '';
     render();

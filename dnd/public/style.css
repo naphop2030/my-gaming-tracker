@@ -305,6 +305,54 @@ select option { background: #141f63; }
 .adv-stage3d { position: absolute; inset: 0; }
 .adv-stage3d .view3d { cursor: pointer; }
 .adv.in-battle .adv-scene, .adv.in-battle .adv-weather { filter: brightness(.75); }
+/* Living paintings: the picture drifts slowly, and a transparent layer on top carries the moving bits. */
+.scene-pan { position: absolute; inset: -2%; animation: scenePan 80s ease-in-out infinite alternate; will-change: transform; }
+.scene-pan > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+@keyframes scenePan { from { transform: scale(1) translate(0, 0); } to { transform: scale(1.06) translate(-1.5%, -1%); } }
+.scene-life * { transform-box: fill-box; transform-origin: center; }
+.lf-drift { animation: lfDrift 120s linear infinite; }
+@keyframes lfDrift { from { transform: translateX(-700px); } to { transform: translateX(2300px); } }
+.lf-fly { animation: lfFly 30s linear infinite; }
+.lf-fly.rev { animation-name: lfFlyRev; }
+@keyframes lfFly { from { transform: translateX(-300px); } to { transform: translateX(1900px); } }
+@keyframes lfFlyRev { from { transform: translateX(1900px) scaleX(-1); } to { transform: translateX(-300px) scaleX(-1); } }
+.lf-bob { animation: lfBob 3s ease-in-out infinite; }
+@keyframes lfBob { 50% { transform: translateY(-12px); } }
+.lf-flap { animation: lfFlap .5s ease-in-out infinite; }
+@keyframes lfFlap { 50% { transform: scaleY(-.6); } }
+.scene-life .lf-circle { transform-box: view-box; animation: lfCircle 26s linear infinite; }
+@keyframes lfCircle { to { transform: rotate(360deg); } }
+.lf-smoke { opacity: 0; animation: lfSmoke 7s linear infinite; }
+@keyframes lfSmoke { 0% { opacity: 0; transform: translate(0, 0) scale(.6); } 15% { opacity: .8; } 100% { opacity: 0; transform: translate(50px, -150px) scale(3.2); } }
+.lf-flicker { animation: lfFlicker 2.4s ease-in-out infinite; }
+@keyframes lfFlicker { 0%, 100% { opacity: .55; } 20% { opacity: .9; } 35% { opacity: .6; } 55% { opacity: 1; } 70% { opacity: .5; } 85% { opacity: .85; } }
+.lf-glow { animation: lfGlow 4s ease-in-out infinite; }
+@keyframes lfGlow { 50% { opacity: .35; transform: scale(.85); } }
+.lf-pulse { animation: lfPulse 8s ease-in-out infinite; }
+@keyframes lfPulse { 50% { opacity: .16; } }
+.lf-ember { opacity: 0; animation: lfEmber 4s ease-out infinite; }
+@keyframes lfEmber { 0% { opacity: 0; transform: translate(0, 0); } 10% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--dx, 20px), -220px); } }
+.lf-wander { animation: lfWander0 14s ease-in-out infinite; }
+.lf-wander.w1 { animation-name: lfWander1; }
+.lf-wander.w2 { animation-name: lfWander2; }
+@keyframes lfWander0 { 25% { transform: translate(40px, -25px); } 50% { transform: translate(10px, -50px); } 75% { transform: translate(-35px, -15px); } }
+@keyframes lfWander1 { 25% { transform: translate(-30px, 20px); } 50% { transform: translate(-60px, -10px); } 75% { transform: translate(-20px, -35px); } }
+@keyframes lfWander2 { 33% { transform: translate(50px, 15px); } 66% { transform: translate(20px, -40px); } }
+.lf-blink { animation: lfBlink 2.5s ease-in-out infinite; }
+@keyframes lfBlink { 0%, 100% { opacity: .15; } 50% { opacity: 1; } }
+.lf-fall { animation: lfFall 12s linear infinite; }
+@keyframes lfFall { from { transform: translate(0, 0) rotate(0); } to { transform: translate(var(--dx, 100px), 680px) rotate(900deg); } }
+.lf-mote { animation: lfMote 20s ease-in-out infinite; }
+@keyframes lfMote { 0%, 100% { transform: translate(0, 0); opacity: .1; } 50% { transform: translate(60px, -40px); opacity: .7; } }
+.lf-dust { animation: lfDust 8s linear infinite; }
+@keyframes lfDust { from { transform: translate(0, 0); opacity: 0; } 15% { opacity: .5; } to { transform: translate(1700px, -60px); opacity: 0; } }
+.lf-shimmer { opacity: 0; animation: lfShimmer 4s ease-in-out infinite; }
+@keyframes lfShimmer { 50% { opacity: .28; transform: translateX(30px); } }
+.lf-drip { opacity: 0; animation: lfDrip 3s ease-in infinite; }
+@keyframes lfDrip { 0% { opacity: 0; transform: translateY(0); } 10% { opacity: .9; } 100% { opacity: .6; transform: translateY(540px); } }
+/* Nothing moves where nobody can see it, or for players who prefer less motion. */
+.adv.menu-open .scene-pan, .adv.menu-open .scene-pan *, .adv.in-battle .scene-pan, .adv.in-battle .scene-pan * { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) { .scene-pan, .scene-pan * { animation: none !important; } }
 .adv-where { position: absolute; left: 12px; top: 12px; display: flex; align-items: center; gap: 10px; z-index: 2; max-width: calc(100% - 260px); }
 .adv-where h2 { margin: 0; font-size: 20px; line-height: 1.1; }
 .adv-region { font-size: 10.5px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--gold); font-weight: 700; }

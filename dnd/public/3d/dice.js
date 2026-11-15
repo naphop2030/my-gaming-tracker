@@ -36,7 +36,7 @@ function numberAtlas() {
   return { tex, cells };
 }
 
-function makeDie() {
+export function makeDie() {
   const base = new THREE.IcosahedronGeometry(1, 0); // already one vertex set per face
   const pos = base.attributes.position;
   const uv = new Float32Array(pos.count * 2);
