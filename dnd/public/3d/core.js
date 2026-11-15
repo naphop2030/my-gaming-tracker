@@ -3,8 +3,66 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 export { THREE };
+
+// ---------- living water ----------
+// Water tiles get moving ripples and glints, added to the standard material's shader.
+const waterTime = { value: 0 };
+export function waterMaterial(mat) {
+  const m = mat.clone();
+  m.roughness = 0.25;
+  m.metalness = 0.15;
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uTime = waterTime;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vWaterPos;')
+      .replace('#include <project_vertex>', `#include <project_vertex>
+        vec4 wp = vec4(transformed, 1.0);
+        #ifdef USE_INSTANCING
+          wp = instanceMatrix * wp;
+        #endif
+        vWaterPos = (modelMatrix * wp).xyz;`);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float uTime;\nvarying vec3 vWaterPos;')
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        float w1 = sin(vWaterPos.x * 2.6 + uTime * 1.3) * sin(vWaterPos.z * 2.1 - uTime * 1.1);
+        float w2 = sin((vWaterPos.x + vWaterPos.z) * 4.3 + uTime * 2.1);
+        float ripple = smoothstep(0.55, 1.0, w1 * 0.7 + w2 * 0.3);
+        diffuseColor.rgb = diffuseColor.rgb * (0.92 + 0.1 * w1) + vec3(0.16, 0.2, 0.22) * ripple;`);
+  };
+  m.customProgramCacheKey = () => 'water';
+  m.userData.water = true;
+  return m;
+}
+export function makeWatery(obj) {
+  obj.traverse((o) => { if (o.isMesh) o.material = waterMaterial(o.material); });
+  return obj;
+}
+
+// A soft dark blob under a character: grounds it even where real shadows are faint.
+let blobTex = null;
+function blobShadow(radius) {
+  if (!blobTex) {
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const g = c.getContext('2d');
+    const r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    r.addColorStop(0, 'rgba(0,0,0,.55)'); r.addColorStop(0.6, 'rgba(0,0,0,.28)'); r.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = r; g.fillRect(0, 0, 64, 64);
+    blobTex = new THREE.CanvasTexture(c);
+  }
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(radius * 2, radius * 2), new THREE.MeshBasicMaterial({ map: blobTex, transparent: true, depthWrite: false }));
+  m.rotation.x = -Math.PI / 2;
+  m.position.y = 0.02;
+  m.renderOrder = 1;
+  return m;
+}
 
 // ---------- assets ----------
 const loader = new GLTFLoader();
@@ -126,6 +184,7 @@ export class Actor {
     const inner = new THREE.Group(); // the actor's own bob, lunge and fall
     inner.add(model);
     group.add(inner);
+    group.add(blobShadow((spec.height || 1.8) * 0.36));
     return new Actor(kind, spec, group, inner, model, gltf.animations, mats);
   }
 
@@ -215,8 +274,24 @@ export function webglAvailable() {
   } catch { return false; }
 }
 
+// Final color pass: a soft dark vignette, a touch more contrast and richer color.
+const GradeShader = {
+  uniforms: { tDiffuse: { value: null }, vignette: { value: 0.42 }, saturation: { value: 1.14 }, contrast: { value: 1.06 } },
+  vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float vignette; uniform float saturation; uniform float contrast; varying vec2 vUv;
+    void main() {
+      vec4 c = texture2D(tDiffuse, vUv);
+      float l = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
+      c.rgb = mix(vec3(l), c.rgb, saturation);
+      c.rgb = max((c.rgb - 0.18) * contrast + 0.18, 0.0);
+      vec2 d = vUv - 0.5;
+      c.rgb *= 1.0 - vignette * smoothstep(0.25, 0.85, dot(d, d) * 2.0);
+      gl_FragColor = c;
+    }`,
+};
+
 export class View {
-  constructor(container, { shadows = true, alpha = false } = {}) {
+  constructor(container, { shadows = true, alpha = false, post = false } = {}) {
     this.container = container;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
@@ -225,6 +300,7 @@ export class View {
     this.renderer.toneMappingExposure = 1.05;
     this.renderer.shadowMap.enabled = shadows && window.innerWidth > 700;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.wantPost = post && window.innerWidth > 700; // skip the extra passes on phones
     this.canvas = this.renderer.domElement;
     this.canvas.className = 'view3d';
     // If the graphics driver gives up (it happens on weak GPUs), tell the page so it can fall back to 2D.
@@ -243,8 +319,27 @@ export class View {
     const w = this.container.clientWidth || 1;
     const h = this.container.clientHeight || 1;
     this.renderer.setSize(w, h, false);
+    if (this.composer) this.composer.setSize(w, h);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+  }
+  // Glow on bright things (torches, spells, windows) and the color grade, set up on first use.
+  setupPost() {
+    try {
+      const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+      const target = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: 4 });
+      const composer = new EffectComposer(this.renderer, target);
+      composer.addPass(new RenderPass(this.scene, this.camera));
+      this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.38, 0.7, 0.82);
+      composer.addPass(this.bloom);
+      composer.addPass(new ShaderPass(GradeShader));
+      composer.addPass(new OutputPass());
+      this.composer = composer;
+      this.resize();
+    } catch (e) {
+      console.warn('3D effects are off:', e);
+      this.postFailed = true;
+    }
   }
   visible() { return this.container.isConnected && this.container.getClientRects().length > 0 && !document.hidden; }
   start() {
@@ -259,7 +354,9 @@ export class View {
     const dt = Math.min(0.05, (now - this.last) / 1000);
     this.last = now;
     for (const fn of this.tickers) fn(dt);
-    this.renderer.render(this.scene, this.camera);
+    waterTime.value += dt;
+    if (this.wantPost && !this.composer && !this.postFailed) this.setupPost();
+    if (this.composer) this.composer.render(dt); else this.renderer.render(this.scene, this.camera);
     requestAnimationFrame(this.loop);
   }
 }
@@ -274,6 +371,8 @@ export function lights(scene, mood) {
   const c = sun.shadow.camera;
   c.left = -30; c.right = 30; c.top = 30; c.bottom = -30; c.near = 1; c.far = 80;
   sun.shadow.bias = -0.0005;
+  sun.shadow.radius = 2.5; // softer shadow edges
+  sun.shadow.blurSamples = 12;
   scene.add(sun);
   return sun;
 }

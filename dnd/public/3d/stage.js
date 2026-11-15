@@ -2,7 +2,7 @@
 // place you're fighting in (painted backdrop, scenery, flickering torches).
 // Everything follows the game's combat events: camera moves, melee dashes, spell effects,
 // hit-stop and knockback, status visuals (Zzz, stars, poison bubbles…), ash dissolves and a victory orbit.
-import { THREE, View, kitPiece, Actor, lights, Bursts, weatherPoints, dioramaFor, isWatery, isSnowy } from './core.js';
+import { THREE, View, kitPiece, Actor, lights, Bursts, weatherPoints, dioramaFor, isWatery, isSnowy, makeWatery, waterMaterial } from './core.js';
 
 const HERO_X = -2.6;
 const FOE_X = 2.6;
@@ -40,7 +40,7 @@ const sprite = (tex, color = 0xffffff, additive = true) => new THREE.Sprite(new 
 
 export class Stage {
   constructor(container) {
-    this.view = new View(container);
+    this.view = new View(container, { post: true });
     this.scene = this.view.scene;
     this.camera = this.view.camera;
     this.camera.fov = 30;
@@ -122,21 +122,36 @@ export class Stage {
     this.scene.background = new THREE.Color(fogColor);
     this.setBackdrop(loc.scene || loc.id, mood);
 
-    const tile = await kitPiece(isWatery(loc.id, loc.region) ? 'hex_water' : 'hex_grass');
+    // The ground matches the place: flagstones, planks, mud, cave floor, snow or grass.
+    // Marshes and lakes get a muddy island with rippling water around it.
+    const watery = isWatery(loc.id, loc.region);
+    const region = String(loc.region || '').toLowerCase();
+    const GROUNDS = {
+      stone: [0x77726c, 0x66615c, 0x807a72], planks: [0x7a5a3c, 0x6a4c32, 0x86643f], mud: [0x6a5a42, 0x5c4e38, 0x74644a],
+      cave: [0x4e443a, 0x443a32, 0x584c40], snow: [0xe8eef6, 0xdde5f0, 0xf2f6fb],
+    };
+    const ground = snowy ? 'snow' : /underground|abbey|fortress|ruins/.test(region) || loc.id === 'shrine' ? 'stone' : /caves/.test(region) ? 'cave'
+      : /lake town/.test(region) ? 'planks' : watery ? 'mud' : 'grass';
+    const tile = await kitPiece('hex_grass');
+    const waterTile = watery ? makeWatery(await kitPiece('hex_water')) : null;
     const box = new THREE.Box3().setFromObject(tile);
     const size = box.getSize(new THREE.Vector3());
     const r = Math.max(size.x, size.z) / 2;
     const flat = size.x >= size.z;
+    const rnd = (x, z) => { const h = Math.sin(x * 127.1 + z * 311.7) * 43758.5453; return h - Math.floor(h); };
     for (let q = -5; q <= 5; q++) {
       for (let s = -4; s <= 3; s++) {
         const x = flat ? q * r * 1.5 : (q + (s % 2 ? 0.5 : 0)) * Math.sqrt(3) * r;
         const z = flat ? (s + (q % 2 ? 0.5 : 0)) * Math.sqrt(3) * r : s * r * 1.5;
-        const t = tile.clone();
-        t.position.set(x, -box.max.y - (Math.abs(x) > 6 ? 0.05 : 0), z);
         // Darker toward the edges so the fighters stand out in the middle.
         const edge = Math.min(1, Math.hypot(x / 7, (z + 0.6) / 4.5));
-        const base = new THREE.Color(indoors ? 0x6a6460 : snowy ? 0xe8eef6 : mood !== 'clear' ? 0x9a927e : 0xb8b8a0).multiplyScalar(1 - edge * 0.35);
-        setTint(t, base, snowy);
+        const shade = 1 - edge * 0.35;
+        const isWater = watery && ground !== 'planks' && edge > 0.72 + rnd(x, z) * 0.12;
+        const t = (isWater ? waterTile : tile).clone();
+        t.position.set(x, -box.max.y - (Math.abs(x) > 6 ? 0.05 : 0) - (isWater ? 0.12 : 0), z);
+        if (isWater) setTint(t, new THREE.Color(mood === 'clear' ? 0xffffff : 0xa8a89a).multiplyScalar(shade));
+        else if (ground === 'grass') setTint(t, new THREE.Color(mood !== 'clear' ? 0x9a927e : 0xb8b8a0).multiplyScalar(shade * (0.94 + rnd(x, z) * 0.12)));
+        else setTint(t, new THREE.Color(GROUNDS[ground][Math.floor(rnd(x, z) * 3)]).multiplyScalar(shade * (indoors ? 0.8 : 1)), true);
         arena.add(t);
       }
     }
@@ -774,7 +789,7 @@ export class Stage {
 function setTint(obj, color, plain) {
   obj.traverse((o) => {
     if (!o.isMesh) return;
-    o.material = o.material.clone();
+    o.material = o.material.userData.water ? waterMaterial(o.material) : o.material.clone(); // (cloning would drop the ripples)
     if (plain) { o.material.map = null; o.material.color = new THREE.Color(color); } // snow: no grass texture
     else o.material.color.multiply(new THREE.Color(color));
   });

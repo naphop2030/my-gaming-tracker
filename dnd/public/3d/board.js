@@ -1,6 +1,6 @@
 // The 3D world map: a hex-tile game board with a little diorama for every place you know about,
 // stepping-stone roads, fog over unexplored land, and the party's miniature walking between places.
-import { THREE, View, kitPiece, Actor, lights, weatherPoints, dioramaFor, isWatery, isSnowy, boardScale } from './core.js';
+import { THREE, View, kitPiece, Actor, lights, weatherPoints, dioramaFor, isWatery, isSnowy, boardScale, waterMaterial } from './core.js';
 import { makeDie } from './dice.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
@@ -97,7 +97,7 @@ function setDim(obj, dim) {
 
 export class Board {
   constructor(container, labels) {
-    this.view = new View(container);
+    this.view = new View(container, { post: true });
     this.labels = labels;
     this.scene = this.view.scene;
     this.camera = this.view.camera;
@@ -183,9 +183,6 @@ export class Board {
       t.position.set(x, 0.19, z);
       T.add(t);
     }
-    const under = new THREE.Mesh(new THREE.BoxGeometry(HALF_W * 2, 0.5, HALF_D * 2), new THREE.MeshStandardMaterial({ color: 0x2a1c12 }));
-    under.position.y = -0.45;
-    T.add(under);
     this.addTableProps(T);
 
   }
@@ -278,7 +275,7 @@ export class Board {
     const m4 = new THREE.Matrix4();
     piece.traverse((mesh) => {
       if (!mesh.isMesh) return;
-      const mat = mesh.material.clone();
+      const mat = placements.water ? waterMaterial(mesh.material) : mesh.material.clone();
       if (placements.plain) { mat.map = null; mat.color = new THREE.Color(0xffffff); mat.roughness = 0.85; } // snow
       const inst = new THREE.InstancedMesh(mesh.geometry, mat, placements.length);
       inst.receiveShadow = true;
@@ -330,6 +327,7 @@ export class Board {
     const waterP = [];
     const snowP = [];
     snowP.plain = true;
+    waterP.water = true;
     const rand = rng(7);
     const decor = [];
     const roads = [];
@@ -378,7 +376,7 @@ export class Board {
     if (waterP.length) add(this.instanced(this.water, waterP));
     // Scenery is drawn as one instanced batch per kind of piece (there can be hundreds).
     const byPick = new Map();
-    for (const d of decor) { if (!byPick.has(d.pick)) byPick.set(d.pick, []); byPick.get(d.pick).push({ x: d.x, y: this.tileTop + d.y, z: d.z, rot: d.rot, s: d.s, c: new THREE.Color(d.dim ? 0x555555 : 0xffffff) }); }
+    for (const d of decor) { if (!byPick.has(d.pick)) byPick.set(d.pick, []); byPick.get(d.pick).push({ x: d.x, y: this.tileTop + d.y, z: d.z, rot: d.rot, s: d.s, c: new THREE.Color(d.dim ? 0x9a9a9a : 0xffffff) }); }
     for (const [pick, list] of byPick) {
       list.shadow = true;
       add(this.instanced(await kitPiece(pick), list));

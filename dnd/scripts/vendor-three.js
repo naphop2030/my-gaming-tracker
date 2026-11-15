@@ -10,6 +10,11 @@ const FILES = [
   'build/three.module.js', 'build/three.core.js', 'LICENSE',
   'examples/jsm/loaders/GLTFLoader.js', 'examples/jsm/utils/BufferGeometryUtils.js',
   'examples/jsm/utils/SkeletonUtils.js', 'examples/jsm/controls/OrbitControls.js',
+  // post-processing: glow (bloom) and color grading
+  'examples/jsm/postprocessing/EffectComposer.js', 'examples/jsm/postprocessing/RenderPass.js', 'examples/jsm/postprocessing/UnrealBloomPass.js',
+  'examples/jsm/postprocessing/OutputPass.js', 'examples/jsm/postprocessing/ShaderPass.js', 'examples/jsm/postprocessing/Pass.js',
+  'examples/jsm/postprocessing/MaskPass.js', 'examples/jsm/shaders/CopyShader.js', 'examples/jsm/shaders/LuminosityHighPassShader.js',
+  'examples/jsm/shaders/OutputShader.js',
 ];
 for (const f of FILES) {
   const dest = path.join(to, f.replace(/^build\//, '').replace(/^examples\/jsm\//, 'addons/'));

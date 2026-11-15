@@ -14,6 +14,8 @@ const ICONS = {
   // monsters
   wolf: 'lorc/wolf-head', spider: 'carl-olsen/spider-face', bandit: 'delapouite/bandit', vesh: 'delapouite/pirate-captain',
   zombie: 'delapouite/shambling-zombie', skeleton: 'skoll/skeleton', cultist: 'skoll/cultist', priest: 'lorc/fire-silhouette',
+  goblin: 'delapouite/goblin-head', snik: 'caro-asercion/goblin', drowned: 'lorc/drowning', hag: 'cathelineau/witch-face', direwolf: 'lorc/direwolf',
+  frostmane: 'lorc/wolf-howl', orc: 'delapouite/orc-head', shaman: 'lorc/tribal-mask', grukk: 'delapouite/brute',
   // items
   potion: 'delapouite/health-potion', 'abbey-key': 'lorc/key', 'moon-charm': 'lucasms/necklace', 'choir-note': 'lorc/scroll-unfurled', gold: 'delapouite/two-coins',
   // actions
@@ -22,6 +24,8 @@ const ICONS = {
   // places
   thornwick: 'delapouite/village', 'old-road': 'delapouite/stone-path', whisperwood: 'delapouite/forest', hollow: 'delapouite/hut',
   watchtower: 'lorc/stone-tower', greyfen: 'delapouite/swamp', crypt: 'delapouite/crypt-entrance', abbey: 'delapouite/church',
+  bramble: 'lorc/wheat', warren: 'delapouite/cave-entrance', saltreed: 'delapouite/stone-bridge', harrowmere: 'delapouite/harbor-dock',
+  shrine: 'delapouite/greek-temple', frostfang: 'lorc/peaks', lodge: 'delapouite/wood-cabin', ironjaw: 'delapouite/castle',
   // interface
   d20: 'delapouite/dice-twenty-faces-twenty', 'd20-one': 'delapouite/dice-twenty-faces-one', combat: 'lorc/crossed-swords', level: 'lorc/laurel-crown',
   camp: 'lorc/campfire', map: 'lorc/treasure-map', journal: 'lorc/open-book', bell: 'lorc/ringing-bell', skull: 'sbed/death-skull', inn: 'delapouite/tavern-sign',
@@ -29,7 +33,7 @@ const ICONS = {
 
 const AUTHORS = {
   lorc: 'Lorc', delapouite: 'Delapouite', darkzaitzev: 'DarkZaitzev', cathelineau: 'Cathelineau', 'carl-olsen': 'Carl Olsen',
-  skoll: 'Skoll', lucasms: 'Lucas', zeromancer: 'Zeromancer (CC0)', sbed: 'Sbed',
+  skoll: 'Skoll', 'caro-asercion': 'Caro Asercion', lucasms: 'Lucas', zeromancer: 'Zeromancer (CC0)', sbed: 'Sbed',
 };
 
 const src = process.argv[2];
@@ -59,5 +63,9 @@ const credits = [
   'The location backgrounds in `public/art/scenes.js` were drawn for this project as code (SVG) and are free to use with the game.',
   '',
 ].join('\n');
-fs.writeFileSync(path.join(__dirname, '..', 'public', 'art', 'CREDITS.md'), credits);
+// Keep the hand-written sections (3D models, sounds, music, libraries) that follow the icon credits.
+const creditsFile = path.join(__dirname, '..', 'public', 'art', 'CREDITS.md');
+const old = fs.existsSync(creditsFile) ? fs.readFileSync(creditsFile, 'utf8') : '';
+const keep = old.includes('\n## 3D models') ? old.slice(old.indexOf('\n## 3D models')) : '';
+fs.writeFileSync(creditsFile, (Array.isArray(credits) ? credits.join('\n') : credits).replace(/\n*$/, '\n') + keep);
 console.log(`Wrote ${Object.keys(ICONS).length} icons and CREDITS.md`);
