@@ -133,6 +133,8 @@
     renderScene(A);
     renderStage(A);
     renderEnemies(A);
+    renderTurns(A);
+    renderFoes2d(A);
     renderParty(A);
     renderLog(A);
     renderNow(A);
@@ -222,8 +224,8 @@
       r.dataset.foe = m.id;
       const name = el('span', 'foe-name');
       name.append(icon(m.icon, 'foe-ico'), el('span', '', m.name));
-      if (m.status && m.status.length) name.append(statusBadges(m.status));
       r.append(name, hpBar(m.hp, m.maxHp), el('span', 'foe-hp', m.hp > 0 ? `${m.hp}/${m.maxHp}` : 'Defeated'));
+      if (m.status && m.status.length) r.append(statusBadges(m.status));
       r.title = m.hp > 0 ? `${m.name} · AC ${m.ac} · click to target` : m.name;
       r.onclick = () => chooseTarget(A, m.id);
       return r;
@@ -231,7 +233,82 @@
     box.replaceChildren(el('div', 'win-title', `Enemies · Round ${TT.S.initiative.round}`), ...rows);
   }
 
-  // ---------- party window ----------
+  // ---------- turn order (who acts now, who's next) ----------
+  function renderTurns(A) {
+    const box = $('#advTurns');
+    box.hidden = !A.combat;
+    if (!A.combat) return;
+    const init = TT.S.initiative;
+    const list = init.list;
+    const start = Math.max(0, list.findIndex((e) => e.id === init.current));
+    const chips = [];
+    for (let k = 0; k < list.length && chips.length < 8; k++) {
+      const e = list[(start + k) % list.length];
+      const pc = A.party.find((p) => p.id === e.owner);
+      const mon = !e.owner && A.combat.monsters.find((m) => m.id === e.ref);
+      if ((pc && pc.hp <= 0) || (mon && mon.hp <= 0) || (!pc && !mon)) continue;
+      const chip = el('span', `turn-chip${chips.length === 0 ? ' now' : ''}${pc ? ' pc' : ' npc'}`);
+      if (chips.length === 0) chip.append(el('b', 'turn-now', 'NOW'));
+      chip.append(pc ? portrait(pc.id, pc.cls, 'xs') : icon(mon.icon, 'sm'), el('span', '', e.name));
+      chips.push(chip);
+    }
+    box.replaceChildren(...chips);
+  }
+
+  // ---------- monsters standing in the scene (2D mode) ----------
+  function renderFoes2d(A) {
+    const box = $('#advFoes2d');
+    const on = !!(A.combat && !use3d());
+    box.hidden = !on;
+    if (!on) return;
+    box.replaceChildren(...A.combat.monsters.map((m) => {
+      const b = el('button', `standee${m.hp <= 0 ? ' dead' : ''}${m.id === targetId && m.hp > 0 ? ' target' : ''}${m.boss ? ' boss' : ''}`);
+      b.type = 'button';
+      b.dataset.foe = m.id;
+      const art = el('div', 'standee-art');
+      art.append(icon(m.icon, 'standee-ico'));
+      const tag = el('div', 'standee-tag');
+      tag.append(el('b', '', m.name), hpBar(m.hp, m.maxHp));
+      if (m.status && m.status.length) tag.append(statusBadges(m.status));
+      b.append(art, el('div', 'standee-base'), tag);
+      b.title = m.hp > 0 ? `${m.name} · AC ${m.ac} · click to target` : `${m.name} (defeated)`;
+      b.onclick = () => chooseTarget(A, m.id);
+      return b;
+    }));
+  }
+
+  // ---------- victory spoils ----------
+  function showSpoils(data, A) {
+    const modal = $('#advSpoils');
+    const win = el('div', 'win modal-win spoils');
+    win.append(el('div', 'win-title', 'Victory!'));
+    const rows = el('div', 'spoils-rows');
+    if (data.xp) {
+      const xp = el('div', 'spoil');
+      xp.append(icon('level', 'spoil-ico'), el('b', '', `+${data.xp} XP`), el('span', '', 'for each hero'));
+      rows.append(xp);
+      for (const h of A.party) {
+        const r = el('div', 'spoil-hero');
+        r.append(portrait(h.id, h.cls, 'xs'), el('span', 'grow', `${h.name} · Lv${h.level}`), hpBar(h.nextXp ? h.xp : 1, h.nextXp || 1, 'xp'), el('small', '', h.nextXp ? `${h.xp}/${h.nextXp}` : 'MAX'));
+        rows.append(r);
+      }
+    }
+    if (data.gold) { const g = el('div', 'spoil'); g.append(icon('gold', 'spoil-ico'), el('b', '', `+${data.gold} gold`)); rows.append(g); }
+    for (const it of data.items) { const g = el('div', 'spoil'); g.append(icon(it.icon || 'potion', 'spoil-ico'), el('b', '', `${it.name}${it.n > 1 ? ` ×${it.n}` : ''}`), el('span', '', 'found')); rows.append(g); }
+    for (const lv of data.levels) {
+      const g = el('div', 'spoil level-up');
+      g.append(icon('level', 'spoil-ico'), el('b', '', `${lv.name} reached level ${lv.level}!`), el('span', '', lv.learned ? `New: ${lv.learned}` : ''));
+      rows.append(g);
+    }
+    if (!rows.children.length) rows.append(el('p', 'hint', 'The way is clear.'));
+    const menu = el('div', 'menu');
+    menu.dataset.prio = '4';
+    menu.append(mi('Continue', { onClick: () => { modal.hidden = true; } }));
+    win.append(rows, menu);
+    modal.replaceChildren(win);
+    modal.hidden = false;
+    window.Menus.init(menu, false);
+  }
   function renderParty(A) {
     const cur = currentEntry();
     const box = $('#advParty');
@@ -891,6 +968,7 @@
       rows.push(r);
     }
     if (window.Board3D) rows.push(toggle('3D graphics', use3d(), (v) => { store.set('dnd.3d', v ? '1' : '0'); nowKey = ''; }, '3D world map, battles and dice. Turn off on slower computers.'));
+    rows.push(toggle('Fast battle effects', FX.speed >= 2, (v) => FX.setSpeed(v ? 2 : 1), 'Plays dice, hits and banners twice as fast.'));
     rows.push(toggle('Auto-switch players in battle', TT.followTurns, (v) => TT.setFollowTurns(v), 'When several players share this screen.'));
     page.replaceChildren(pageHead('Settings'), ...rows);
   }
@@ -928,6 +1006,7 @@
     const a = document.activeElement;
     if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) { a.blur(); return; }
     e.preventDefault();
+    if (!$('#advSpoils').hidden) { $('#advSpoils').hidden = true; FX.sfx('back'); return; }
     if (!$('#advModal').hidden) { modalClosed = true; nowKey = ''; FX.sfx('back'); render(); return; }
     if (menuOpen) { FX.sfx('back'); closeMenu(); return; }
     if (stack.length) { FX.sfx('back'); back(); return; }
@@ -944,6 +1023,17 @@
       if (e.fx) fresh.push(e.fx);
     }
     if (!fresh.length) return;
+    const vi = fresh.findIndex((f) => f.t === 'victory');
+    if (vi >= 0) {
+      const after = fresh.slice(vi + 1);
+      const data = {
+        xp: after.filter((f) => f.t === 'xp').reduce((a, f) => a + f.n, 0),
+        gold: after.filter((f) => f.t === 'gold' && f.n > 0).reduce((a, f) => a + f.n, 0),
+        items: after.filter((f) => f.t === 'item').map((f) => ({ name: f.name, n: f.n || 1, icon: f.icon })),
+        levels: after.filter((f) => f.t === 'level').map((f) => ({ name: f.name || ((A.party.find((p) => p.id === f.id) || {}).name), level: f.level, learned: f.learned })),
+      };
+      setTimeout(() => showSpoils(data, TT.S.adventure || A), (1700 + data.levels.length * 1800) / (FX.speed || 1));
+    }
     FX.enqueue(fresh, {
       meId: TT.me.id,
       nameOf: (id) => (A.party.find((p) => p.id === id) || { name: 'A hero' }).name,

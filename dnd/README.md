@@ -25,6 +25,12 @@ The included adventure is **The Ashen Vale**: 8 locations, a main quest, 3 side 
 - **Status effects:** poison, sleep, stun, hiding, blessing and a spiritual hammer.
 - **Monster tricks:** wolves hunt as a pack, spiders poison, skeletal monks can rattle back together (holy damage stops them), bog zombies refuse to fall, and the Cinder Priest unleashes Cinder Burst and calls her Choir.
 - **Travel events:** a wandering peddler, a wayside shrine, an injured pilgrim, healing herbs, an abandoned cart, ash storms and an old friend.
+- **Battles:**
+  - A turn-order bar shows who acts now and next.
+  - In 3D, fighters dash in to strike, the camera shakes on critical hits and follows whoever's turn it is, and damage numbers float over the models. In 2D, monsters appear as standees in the scene.
+  - The boss warns you a turn before Cinder Burst; Defend to brace and dodge more easily.
+  - After every win, a Victory window shows XP, gold, loot and level-ups.
+  - Settings has a "fast battle effects" option.
 - **Music and sound:** original music for town, the wilds, dark places, battles and the boss, plus recorded sound effects for swords, footsteps, coins and pages. Music and sound each have their own switch in Settings.
 - **Continue:** the title screen remembers your recent games, so there's no need to remember the code.
 

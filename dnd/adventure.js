@@ -228,14 +228,14 @@ function levelUp(adv, c, quiet) {
   if (learned === 'asi') c.abilities[C.main] = Math.min(20, c.abilities[C.main] + 2);
   if (quiet) { c.hp = c.maxHp; return; }
   const what = learned ? ` Learned: ${TALENTS[learned].name}${learned === 'asi' ? ` (+2 ${C.main.toUpperCase()})` : ''}.` : '';
-  log(adv, 'level', `${c.name} reaches level ${c.level}! (+${gain} max HP)${what}`, { fx: { t: 'level', id: idOf(adv, c), learned: learned ? TALENTS[learned].name : null } });
+  log(adv, 'level', `${c.name} reaches level ${c.level}! (+${gain} max HP)${what}`, { fx: { t: 'level', id: idOf(adv, c), name: c.name, level: c.level, learned: learned ? TALENTS[learned].name : null } });
 }
 
 function giveXp(adv, amount) {
   if (!amount) return;
   const list = heroes(adv);
   if (!list.length) return;
-  log(adv, 'loot', `Each hero gains ${amount} XP.`);
+  log(adv, 'loot', `Each hero gains ${amount} XP.`, { fx: { t: 'xp', n: amount } });
   for (const { c } of list) {
     c.xp += amount;
     while (c.level < MAX_LEVEL && c.xp >= XP_LEVELS[c.level]) levelUp(adv, c);
@@ -343,7 +343,7 @@ function enterScene(adv, id) {
 function addItem(adv, id, n = 1) {
   const A = content(adv);
   adv.inventory[id] = (adv.inventory[id] || 0) + n;
-  log(adv, 'loot', `Found: ${itemName(A, id)}${n > 1 ? ` ×${n}` : ''}`, { fx: { t: 'item', icon: itemIcon(A, id) } });
+  log(adv, 'loot', `Found: ${itemName(A, id)}${n > 1 ? ` ×${n}` : ''}`, { fx: { t: 'item', icon: itemIcon(A, id), name: itemName(A, id), n } });
 }
 
 function apply(room, actor, o) {
@@ -493,16 +493,20 @@ function monsterTurn(room, m) {
     return;
   }
   if (M.burst && m.turns % M.burst.every === 0) {
-    log(adv, 'combat', `${m.name} unleashes ${M.burst.name}!`, { title: 'Combat' });
+    delete m.status.charging;
+    log(adv, 'combat', `${m.name} unleashes ${M.burst.name}!`, { title: 'Combat', fx: { t: 'burst', id: m.id } });
     for (const { id, c } of alive(adv)) {
-      const save = d20() + mod(c.abilities[M.burst.ability]) + (CLASSES[c.cls].saves.includes(M.burst.ability) ? prof(c) : 0) + blessBonus(adv);
+      const roll1 = c.defending ? Math.max(d20(), d20()) : d20(); // braced heroes get advantage
+      const save = roll1 + mod(c.abilities[M.burst.ability]) + (CLASSES[c.cls].saves.includes(M.burst.ability) ? prof(c) : 0) + blessBonus(adv);
       let dmg = dice(M.burst.dmg);
       const ok = save >= M.burst.dc;
       if (ok) dmg = Math.floor(dmg / 2);
-      hurtHero(room, id, c, dmg, `${c.name} is caught in the blast: save ${save} vs DC ${M.burst.dc}${ok ? ', half damage' : ''}. {dmg} damage.`, { from: m.id, style: 'fire' });
+      hurtHero(room, id, c, dmg, `${c.name} is caught in the blast${c.defending ? ' (braced)' : ''}: save ${save} vs DC ${M.burst.dc}${ok ? ', half damage' : ''}. {dmg} damage.`, { from: m.id, style: 'fire' });
     }
     return;
   }
+  // Warn one turn ahead, so heroes can Defend (brace) or finish the fight.
+  const warnBurst = M.burst && (m.turns + 1) % M.burst.every === 0;
 
   for (let i = 0; i < (M.attacks || 1); i++) {
     let targets = alive(adv);
@@ -525,6 +529,10 @@ function monsterTurn(room, m) {
     } else {
       log(adv, 'combat', `${m.name} ${M.verb || 'attacks'} ${c.name}: ${total} vs AC ${ac}. Miss${c.defending ? ' (defending)' : ''}.`, { fx: { t: 'miss', id: heroId, from: m.id } });
     }
+  }
+  if (warnBurst && m.hp > 0) {
+    m.status.charging = true;
+    log(adv, 'combat', `${m.name} draws burning ash into her hands… ${M.burst.name} is coming next turn! (Defend to brace for it.)`, { fx: { t: 'warn', id: m.id, text: `${M.burst.name} next turn!` } });
   }
 }
 
@@ -1121,7 +1129,7 @@ function syncSheets(room) {
 }
 
 // ---------- what the browser sees ----------
-const STATUS_LABELS = { poison: 'Poisoned', sleep: 'Asleep', stun: 'Stunned', hidden: 'Hidden', spirit: 'Spirit hammer' };
+const STATUS_LABELS = { poison: 'Poisoned', sleep: 'Asleep', stun: 'Stunned', hidden: 'Hidden', spirit: 'Spirit hammer', charging: 'Charging!' };
 const statusList = (s) => Object.keys(s || {}).filter((k) => STATUS_LABELS[k]).map((k) => ({ id: k, label: STATUS_LABELS[k], turns: (s[k] && s[k].turns) || null }));
 
 function itemView(A, id, n) {

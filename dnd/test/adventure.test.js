@@ -251,5 +251,6 @@ test('the boss summons help and uses Cinder Burst', () => {
   boss.hp = boss.maxHp = 240; // long enough to see her tricks
   fight(room);
   assert.ok(room.adventure.log.some((e) => /Cinder Burst/.test(e.text)), 'burst happened');
+  assert.ok(room.adventure.log.some((e) => /coming next turn/.test(e.text)), 'burst was telegraphed');
   assert.ok(room.adventure.log.some((e) => /shrieks for her Choir/.test(e.text)), 'summon happened');
 });

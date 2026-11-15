@@ -61,6 +61,6 @@ if (webglAvailable()) {
     },
   };
 
-  window.FX3D = { onFx: (fx) => window.Stage3D.onFx(fx) };
+  window.FX3D = { onFx: (fx) => window.Stage3D.onFx(fx), rect: (kind, id) => (stage ? stage.rect(kind, id) : null) };
   window.dispatchEvent(new Event('three-ready'));
 }

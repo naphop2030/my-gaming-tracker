@@ -9,7 +9,8 @@
   };
   const rand = (a, b) => a + Math.random() * (b - a);
   let fast = false; // when lots of effects are queued, play them quicker
-  const wait = (ms) => new Promise((r) => setTimeout(r, fast ? ms / 2 : ms));
+  let speed = Number(store.get('dnd.fxSpeed') || 1); // battle speed setting: 1 normal, 2 fast
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms / speed / (fast ? 2 : 1)));
 
   // ================= weather =================
   class Weather {
@@ -273,6 +274,7 @@
     return layer;
   }
   function rectOf(sel) {
+    if (sel && typeof sel === 'object') return sel; // already a screen rectangle (e.g. from the 3D stage)
     const el = document.querySelector(sel);
     if (!el || !el.offsetParent) return null;
     return el.getBoundingClientRect();
@@ -311,6 +313,16 @@
     Object.assign(s.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
     overlay().append(s);
     setTimeout(() => s.remove(), 700);
+  }
+  function shakeScreen(big) {
+    if (reduced) return;
+    const el = document.querySelector('#advStageWrap');
+    if (!el) return;
+    el.classList.remove('fx-screenshake', 'big');
+    void el.offsetWidth;
+    el.classList.add('fx-screenshake');
+    if (big) el.classList.add('big');
+    setTimeout(() => el.classList.remove('fx-screenshake', 'big'), 600);
   }
   function pulse(sel, cls, ms = 600) {
     const el = document.querySelector(sel);
@@ -374,14 +386,19 @@
   // Plays one effect; resolves when the next one may start.
   async function run(fx, ctx) {
     try { if (window.FX3D) window.FX3D.onFx(fx); } catch { /* 3D is optional */ }
-    const foe = (id) => `[data-foe="${id}"]`;
-    const hero = (id) => `[data-hero="${id}"]`;
+    // Float numbers over the 3D model when the battle is in 3D, otherwise over its card/row.
+    const at3d = (kind, id) => { try { return window.FX3D && window.FX3D.rect ? window.FX3D.rect(kind, id) : null; } catch { return null; } };
+    const foe = (id) => at3d('foe', id) || `[data-foe="${id}"]`;
+    const hero = (id) => at3d('hero', id) || `[data-hero="${id}"]`;
+    const heroEl = (id) => `[data-hero="${id}"]`;
+    const foeEl = (id) => `[data-foe="${id}"]`;
     switch (fx.t) {
       case 'check': await diceRoll(fx); return;
       case 'dmg':
         strike(foe(fx.id), fx.style || 'slash');
-        pulse(foe(fx.id), 'fx-shake');
+        pulse(foeEl(fx.id), 'fx-shake');
         floatText(foe(fx.id), fx.crit ? `CRIT −${fx.n}` : `−${fx.n}`, fx.crit ? 'crit' : 'dmg');
+        if (fx.crit) shakeScreen();
         play(fx.crit ? 'critS' : (fx.style === 'fire' ? 'fire' : fx.style === 'arcane' ? 'arcane' : fx.style === 'holy' ? 'holy' : fx.style === 'poison' ? 'hurt' : fx.style === 'stab' ? 'stabS' : 'hitS'));
         await wait(520); return;
       case 'miss':
@@ -394,7 +411,7 @@
         play('killS');
         await wait(420); return;
       case 'hurt':
-        pulse(hero(fx.id), 'fx-shake');
+        pulse(heroEl(fx.id), 'fx-shake');
         floatText(hero(fx.id), fx.crit ? `CRIT −${fx.n}` : `−${fx.n}`, fx.crit ? 'crit' : 'dmg');
         if (fx.id === ctx.meId) pulse('#adventure', 'fx-hurt', 700);
         play(fx.style === 'fire' ? 'fire' : 'punchS');
@@ -408,7 +425,7 @@
         play('potionS');
         await wait(450); return;
       case 'defend':
-        pulse(hero(fx.id), 'fx-defend', 900);
+        pulse(heroEl(fx.id), 'fx-defend', 900);
         play('blockS');
         await wait(250); return;
       case 'gold':
@@ -442,6 +459,11 @@
         play(fx.status === 'poison' ? 'hurt' : 'arcane');
         await wait(300); return;
       }
+      case 'warn':
+        floatText(foe(fx.id), fx.text || 'Watch out!', 'crit');
+        play('combat');
+        await banner(fx.text || 'Watch out!', 'red', 'skull', 1300); return;
+      case 'burst': shakeScreen(true); play('fire'); await wait(300); return;
       case 'heal-foe': floatText(foe(fx.id), 'Rises again!', 'crit'); play('bonesS'); await wait(400); return;
       case 'combat': play('combat'); await banner('Combat!', 'red', 'combat', 900); return;
       case 'victory': play('victory'); await banner('Victory!', 'gold', 'level', 1300); return;
@@ -481,5 +503,7 @@
     setMuted(v) { muted = !!v; store.set('dnd.mute', muted ? '1' : '0'); if (!muted) play('coins'); },
     reduced,
     sfx: (name) => play(name === 'open' ? 'menuS' : name),
+    get speed() { return speed; },
+    setSpeed(v) { speed = v >= 2 ? 2 : 1; store.set('dnd.fxSpeed', String(speed)); },
   };
 })();

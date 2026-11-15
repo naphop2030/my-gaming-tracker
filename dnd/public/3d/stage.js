@@ -20,6 +20,10 @@ export class Stage {
     this.ready = Promise.resolve();
     this.view.tickers.add((dt) => this.tick(dt));
     this.t = 0;
+    this.tweens = [];
+    this.shakeAmt = 0;
+    this.focusX = 0.2;
+    this.lookX = 0.2;
 
     const ray = new THREE.Raycaster();
     this.view.canvas.addEventListener('click', (e) => {
@@ -97,6 +101,23 @@ export class Stage {
     await this.setArena(A.location.id, A.location.region, mood);
     // A new fight: rebuild the cast.
     const key = A.combat.monsters.map((m) => m.id).join(',');
+    // A monster joined mid-fight (summoned): just add it, don't rebuild the scene.
+    if (this.combatKey && key !== this.combatKey && key.startsWith(this.combatKey)) {
+      const known = new Set(this.foes.keys());
+      const fresh = A.combat.monsters.filter((m) => !known.has(m.id));
+      this.combatKey = key;
+      await Promise.all(fresh.map(async (m, i) => {
+        const a = await Actor.create(m.key);
+        a.group.position.set(FOE_X + 1.8, 0, 1.6 - i * 1.4);
+        a.group.rotation.y = -Math.PI / 2;
+        a.group.userData.foe = m.id;
+        a.ringMesh = this.ring(0xe0614f);
+        a.group.add(a.ringMesh);
+        this.foes.set(m.id, a);
+        this.scene.add(a.group);
+        this.bursts.burst(a.group.position.clone().setY(0.5), { color: 0xff7a2a, count: 40, speed: 2, up: 3 });
+      }));
+    }
     if (key !== this.combatKey) {
       this.combatKey = key;
       for (const a of [...this.heroes.values(), ...this.foes.values()]) this.scene.remove(a.group);
@@ -139,6 +160,8 @@ export class Stage {
       if (h.hp > 0 && a.dead) a.revive();
       a.ringMesh.material.opacity = cur && cur.owner === h.id ? 0.9 : 0;
     }
+    const active = cur && (this.heroes.get(cur.owner) || this.foes.get(cur.ref));
+    this.focusX = active ? 0.2 + active.group.position.x * 0.18 : 0.2;
     this.view.start();
   }
 
@@ -153,11 +176,14 @@ export class Stage {
         const attacker = fx.by ? hero(fx.by) : fx.from ? foe(fx.from) : null;
         if (fx.t === 'miss' && fx.from) { // a monster missed a hero
           const m = foe(fx.from);
-          if (m) m.play('attack');
+          if (m) { m.play('attack'); if (target) this.lunge(m, target); }
           if (target) target.play('block');
           return;
         }
-        if (attacker) attacker.play(fx.style === 'fire' || fx.style === 'arcane' || fx.style === 'holy' ? 'cast' : 'attack');
+        const ranged = fx.style === 'fire' || fx.style === 'arcane' || fx.style === 'holy' || fx.style === 'poison';
+        if (attacker) attacker.play(ranged ? 'cast' : 'attack');
+        if (attacker && target && !ranged) this.lunge(attacker, target);
+        if (fx.crit) this.shake(0.25);
         if (!target) return;
         const land = () => {
           if (fx.t === 'dmg') { target.play('hit'); target.hitFlash(); this.bursts.burst(chest(target), { color: fx.crit ? 0xffd34d : 0xff5a3a, count: fx.crit ? 40 : 22 }); }
@@ -177,7 +203,8 @@ export class Stage {
       case 'hurt': {
         const m = fx.from && foe(fx.from);
         const h = hero(fx.id);
-        if (m && fx.style === 'fire') { m.play('cast'); if (h) this.bursts.projectile(chest(m), chest(h), { color: 0xff6a20, time: 0.35, size: 0.6 }); } else if (m) m.play('attack');
+        if (m && fx.style === 'fire') { m.play('cast'); if (h) this.bursts.projectile(chest(m), chest(h), { color: 0xff6a20, time: 0.35, size: 0.6 }); } else if (m) { m.play('attack'); if (h) this.lunge(m, h); }
+        if (fx.crit) this.shake(0.3);
         if (h) setTimeout(() => { h.play('hit'); h.hitFlash(); this.bursts.burst(chest(h), { color: 0xff3a2a, count: 20 }); }, m ? 300 : 0);
         return;
       }
@@ -191,6 +218,17 @@ export class Stage {
         return;
       }
       case 'defend': { const h = hero(fx.id); if (h) h.play('block'); return; }
+      case 'burst': {
+        const m = foe(fx.id);
+        if (m) { m.play('cast'); this.bursts.burst(chest(m), { color: 0xff5a10, count: 80, speed: 5, up: 1.5, gravity: -1, life: 1.2, size: 0.35 }); }
+        this.shake(0.5);
+        return;
+      }
+      case 'warn': {
+        const m = foe(fx.id);
+        if (m) { m.play('cast'); this.bursts.burst(chest(m), { color: 0xffa040, count: 30, speed: 0.8, up: 3, gravity: 1, life: 1.5 }); }
+        return;
+      }
       case 'cast': {
         const h = fx.by && hero(fx.by);
         if (h) { h.play('cast'); this.bursts.burst(chest(h), { color: fx.style === 'holy' ? 0xffe9a0 : fx.style === 'fire' ? 0xff8a3a : 0xb68cff, count: 30, speed: 1.6, up: 2, gravity: 0.5 }); }
@@ -207,6 +245,34 @@ export class Stage {
       case 'level': { const h = hero(fx.id); if (h) this.bursts.burst(h.group.position.clone().setY(0.2), { color: 0xffd36a, count: 60, speed: 2, up: 4, gravity: 0.5, life: 1.6 }); return; }
       default: return;
     }
+  }
+
+  // Melee: step in toward the target, strike, step back.
+  lunge(attacker, target) {
+    if (attacker.dead || attacker.lunging) return;
+    attacker.lunging = true;
+    const home = attacker.group.position.clone();
+    const dir = target.group.position.clone().sub(home);
+    const dist = dir.length();
+    const stop = home.clone().add(dir.normalize().multiplyScalar(Math.max(0, dist - 1.1)));
+    this.tween(attacker.group.position, home, stop, 0.22, () => {
+      setTimeout(() => this.tween(attacker.group.position, stop, home, 0.3, () => { attacker.lunging = false; }), 380);
+    });
+  }
+  tween(vec, from, to, dur, done) { this.tweens.push({ vec, from: from.clone(), to: to.clone(), t: 0, dur, done }); }
+  shake(amount) { this.shakeAmt = Math.max(this.shakeAmt, amount); }
+
+  // Where a fighter is on screen (for floating damage numbers).
+  rect(kind, id) {
+    const a = (kind === 'foe' ? this.foes : this.heroes).get(id);
+    if (!a || !this.view.visible() || this.view.container.hidden) return null;
+    const p = a.group.position.clone().add(new THREE.Vector3(0, (a.spec.height || 1.8) * 1.05, 0));
+    p.project(this.camera);
+    if (p.z > 1) return null;
+    const r = this.view.canvas.getBoundingClientRect();
+    const x = r.left + ((p.x + 1) / 2) * r.width;
+    const y = r.top + ((1 - p.y) / 2) * r.height;
+    return { left: x - 40, top: y - 10, width: 80, height: 90 };
   }
 
   beam(target) {
@@ -226,11 +292,23 @@ export class Stage {
 
   tick(dt) {
     this.t += dt;
+    for (let i = this.tweens.length - 1; i >= 0; i--) {
+      const tw = this.tweens[i];
+      tw.t = Math.min(1, tw.t + dt / tw.dur);
+      const k = tw.t < 0.5 ? 2 * tw.t * tw.t : 1 - Math.pow(-2 * tw.t + 2, 2) / 2;
+      tw.vec.lerpVectors(tw.from, tw.to, k);
+      if (tw.t >= 1) { this.tweens.splice(i, 1); if (tw.done) tw.done(); }
+    }
     for (const a of [...this.heroes.values(), ...this.foes.values()]) a.update(dt);
     this.bursts.update(dt);
     // slow cinematic sway
-    this.camera.position.x = -0.2 + Math.sin(this.t * 0.25) * 0.35;
-    this.camera.lookAt(0.2, 0.85, -0.4);
+    this.lookX += (this.focusX - this.lookX) * Math.min(1, dt * 2);
+    this.shakeAmt = Math.max(0, this.shakeAmt - dt * 1.2);
+    const sx = (Math.random() - 0.5) * this.shakeAmt;
+    const sy = (Math.random() - 0.5) * this.shakeAmt;
+    this.camera.position.x = -0.2 + Math.sin(this.t * 0.25) * 0.35 + this.lookX * 0.5 + sx;
+    this.camera.position.y = 3.3 + sy;
+    this.camera.lookAt(this.lookX, 0.85, -0.4);
   }
 }
 
