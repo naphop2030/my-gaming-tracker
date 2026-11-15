@@ -27,16 +27,23 @@ const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
 
 // Find a model file anywhere under the source folder (gltf/glb only, not the FBX copies).
 const index = new Map();
+const allFiles = [];
 (function walk(dir) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name);
     if (e.isDirectory()) { if (!/fbx|\.git|node_modules/i.test(e.name)) walk(p); } else if (/\.(gltf|glb)$/i.test(e.name)) {
       const key = e.name.replace(/\.(gltf|glb)$/i, '');
+      allFiles.push(p);
       if (!index.has(key)) index.set(key, p);
     }
   }
 })(src);
-const find = (name) => { const p = index.get(name); if (!p) throw new Error(`Model not found: ${name}`); return p; };
+// `dir` picks between files with the same name, e.g. Ultimate Monsters has Orc in Big/, Blob/ and so on.
+const find = (name, dir) => {
+  const p = dir ? allFiles.find((f) => f.includes(`${path.sep}${dir}${path.sep}`) && path.basename(f).replace(/\.(gltf|glb)$/i, '') === name) : index.get(name);
+  if (!p) throw new Error(`Model not found: ${dir ? `${dir}/` : ''}${name}`);
+  return p;
+};
 
 const KAYKIT_ANIMS = ['Idle', 'Idle_Combat', '1H_Melee_Attack_Chop', '1H_Melee_Attack_Stab', '1H_Melee_Attack_Slice_Diagonal', '2H_Melee_Attack_Chop',
   'Spellcast_Shoot', 'Spellcast_Raise', 'Hit_A', 'Death_A', 'Death_A_Pose', 'Cheer', 'Walking_A', 'Block', 'Use_Item', 'Skeletons_Awaken_Standing'];
@@ -51,6 +58,12 @@ const CHARACTERS = {
   wolf: { file: 'Wolf' },
   spider: { file: 'Spider' },
   orc: { file: 'Orc' },
+  // Quaternius "Ultimate Monsters"
+  goblin: { file: 'Orc', dir: 'Blob', keep: ['Idle', 'Bite_Front', 'HitRecieve', 'Death', 'Walk', 'Yes'] },
+  tribal: { file: 'Tribal', dir: 'Big', keep: ['Idle', 'Weapon', 'Punch', 'HitReact', 'Death', 'Walk', 'Yes'] },
+  'tribal-spirit': { file: 'Tribal', dir: 'Flying', keep: ['Flying_Idle', 'Headbutt', 'Punch', 'HitReact', 'Death', 'Fast_Flying', 'Yes'] },
+  'orc-skull': { file: 'Orc_Skull', dir: 'Big', keep: ['Idle', 'Weapon', 'Punch', 'HitReact', 'Death', 'Walk', 'Yes'] },
+  ghost: { file: 'Ghost', dir: 'Flying', keep: ['Flying_Idle', 'Headbutt', 'Punch', 'HitReact', 'Death', 'Fast_Flying', 'Yes'] },
 };
 
 // Props for the world board and battle stages, merged into one file (they share one texture).
@@ -106,7 +119,7 @@ async function writeClean(file, doc) {
 
 const sizes = [];
 for (const [key, c] of Object.entries(CHARACTERS)) {
-  const doc = await io.read(find(c.file));
+  const doc = await io.read(find(c.file, c.dir));
   // Quaternius animation names look like "AnimalArmature|Attack": keep just "Attack".
   for (const a of doc.getRoot().listAnimations()) a.setName(a.getName().replace(/^.*\|/, ''));
   await optimize(doc, { anims: c.keep });

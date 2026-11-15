@@ -109,16 +109,16 @@ export const CAST = {
   skeleton: { model: 'skeleton-warrior', height: 1.75, weapons: { 'handslot.r': 'Skeleton_Blade', 'handslot.l': 'Skeleton_Shield_Small_A' }, anims: { awaken: 'Skeletons_Awaken_Standing', idle: 'Idle_Combat' } },
   cultist: { model: 'mage', show: ['1H_Wand', 'Mage_Cape'], height: 1.7, tint: 0xc0605a, anims: { attack: 'Spellcast_Shoot' } },
   priest: { model: 'mage', show: ['2H_Staff', 'Mage_Hat', 'Mage_Cape'], height: 2.35, tint: 0xffb08a, glow: 0xff4a10, anims: { attack: 'Spellcast_Shoot' } },
-  // beyond the Vale
-  goblin: { model: 'orc', height: 1.15, tint: 0x9ad06a, anims: { idle: 'Idle', attack: 'Punch', hit: 'HitReact', death: 'Death', walk: 'Walk', cheer: 'Yes' } },
-  snik: { model: 'orc', height: 1.55, tint: 0xc8e878, glow: 0x3a4a00, anims: { idle: 'Idle', attack: 'Punch', hit: 'HitReact', death: 'Death', walk: 'Walk', cheer: 'Yes' } },
-  drowned: { model: 'orc', height: 1.85, tint: 0x7fa8b8, anims: { idle: 'Idle', attack: 'Punch', hit: 'HitReact', death: 'Death', walk: 'Walk', cheer: 'Yes' } },
-  hag: { model: 'mage', show: ['2H_Staff', 'Mage_Cape'], height: 2.3, tint: 0x7ab89a, glow: 0x0a7a5a, anims: { attack: 'Spellcast_Shoot' } },
+  // beyond the Vale (Quaternius "Ultimate Monsters")
+  goblin: { model: 'goblin', height: 1.0, anims: { idle: 'Idle', attack: 'Bite_Front', hit: 'HitRecieve', death: 'Death', walk: 'Walk', cheer: 'Yes' } },
+  snik: { model: 'tribal', height: 1.65, anims: { idle: 'Idle', attack: 'Weapon', cast: 'Punch', hit: 'HitReact', death: 'Death', walk: 'Walk', cheer: 'Yes' } },
+  drowned: { model: 'ghost', height: 1.5, hover: 0.3, glow: 0x5a9ae0, anims: { idle: 'Flying_Idle', attack: 'Headbutt', cast: 'Punch', hit: 'HitReact', death: 'Death', walk: 'Fast_Flying', cheer: 'Yes' } },
+  hag: { model: 'ghost', height: 2.5, hover: 0.35, tint: 0x8fe6b0, glow: 0x0a7a5a, anims: { idle: 'Flying_Idle', attack: 'Headbutt', cast: 'Punch', hit: 'HitReact', death: 'Death', walk: 'Fast_Flying', cheer: 'Yes' } },
+  shaman: { model: 'tribal-spirit', height: 1.35, hover: 0.45, anims: { idle: 'Flying_Idle', attack: 'Headbutt', cast: 'Punch', hit: 'HitReact', death: 'Death', walk: 'Fast_Flying', cheer: 'Yes' } },
+  grukk: { model: 'orc-skull', height: 2.7, glow: 0x401000, anims: { idle: 'Idle', attack: 'Weapon', cast: 'Punch', hit: 'HitReact', death: 'Death', walk: 'Walk', cheer: 'Yes' } },
   direwolf: { model: 'wolf', height: 1.45, tint: 0x9a8a7a, anims: { idle: 'Idle', attack: 'Attack', hit: 'Idle_HitReact_Left', death: 'Death', walk: 'Walk', cheer: 'Idle_2' } },
   frostmane: { model: 'wolf', height: 1.95, tint: 0xf4f8ff, glow: 0x30506a, anims: { idle: 'Idle', attack: 'Attack', hit: 'Idle_HitReact_Left', death: 'Death', walk: 'Walk', cheer: 'Idle_2' } },
   orc: { model: 'orc', height: 2.0, tint: 0xd8b890, anims: { idle: 'Idle', attack: 'Punch', hit: 'HitReact', death: 'Death', walk: 'Walk', cheer: 'Yes' } },
-  shaman: { model: 'mage', show: ['2H_Staff', 'Mage_Cape'], height: 1.85, tint: 0x90c070, anims: { attack: 'Spellcast_Shoot' } },
-  grukk: { model: 'orc', height: 2.65, tint: 0xe09070, glow: 0x401000, anims: { idle: 'Idle', attack: 'Punch', hit: 'HitReact', death: 'Death', walk: 'Walk', cheer: 'Yes' } },
 };
 export const castFor = (kind) => CAST[kind] || CAST.bandit;
 
@@ -179,13 +179,14 @@ export class Actor {
     const h = Math.max(0.01, box.max.y - box.min.y);
     const s = ((spec.height || 1.8) * (opts.scale || 1)) / h;
     model.scale.setScalar(s);
-    model.position.y = -box.min.y * s;
+    model.position.y = -box.min.y * s + (spec.hover || 0); // ghosts and spirits float
     const group = new THREE.Group(); // positioned by the board / stage
     const inner = new THREE.Group(); // the actor's own bob, lunge and fall
     inner.add(model);
     group.add(inner);
     group.add(blobShadow((spec.height || 1.8) * 0.36));
-    return new Actor(kind, spec, group, inner, model, gltf.animations, mats);
+    // (markers and HP bars sit above the head, so count the hover as extra height)
+    return new Actor(kind, spec.hover ? { ...spec, height: (spec.height || 1.8) + spec.hover } : spec, group, inner, model, gltf.animations, mats);
   }
 
   constructor(kind, spec, group, inner, model, clips, mats) {
