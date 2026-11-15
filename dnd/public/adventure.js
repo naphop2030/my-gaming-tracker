@@ -184,11 +184,31 @@
   }
 
   // 3D battle stage replaces the picture during fights.
+  let stageWasOn = false;
+  let stageHoldUntil = 0;
+  let holdTimer = null;
+  function holdStage(ms) {
+    const until = Date.now() + ms / (FX.speed || 1);
+    if (until <= stageHoldUntil) return;
+    stageHoldUntil = until;
+    clearTimeout(holdTimer);
+    holdTimer = setTimeout(render, until - Date.now() + 20);
+  }
+  function releaseStage() {
+    if (!stageHoldUntil) return;
+    stageHoldUntil = 0;
+    clearTimeout(holdTimer);
+    render();
+  }
   function renderStage(A) {
     const on = !!(A.combat && use3d() && A.party.length);
     const box = $('#advStage3d');
-    box.hidden = !on;
-    $('#adventure').classList.toggle('in-battle', !!A.combat);
+    // When a fight ends, keep the stage up so the victory cheer and camera orbit show.
+    if (on) stageWasOn = true;
+    else if (stageWasOn) { stageWasOn = false; if (!A.combat && !A.ended) holdStage(2500); }
+    const linger = !on && use3d() && Date.now() < stageHoldUntil;
+    box.hidden = !on && !linger;
+    $('#adventure').classList.toggle('in-battle', !!A.combat || linger);
     if (A.combat) {
       const living = A.combat.monsters.filter((m) => m.hp > 0);
       if (!living.some((m) => m.id === targetId)) targetId = living[0] ? living[0].id : null;
@@ -303,7 +323,7 @@
     if (!rows.children.length) rows.append(el('p', 'hint', 'The way is clear.'));
     const menu = el('div', 'menu');
     menu.dataset.prio = '4';
-    menu.append(mi('Continue', { onClick: () => { modal.hidden = true; } }));
+    menu.append(mi('Continue', { onClick: () => { modal.hidden = true; releaseStage(); } }));
     win.append(rows, menu);
     modal.replaceChildren(win);
     modal.hidden = false;
@@ -1006,7 +1026,7 @@
     const a = document.activeElement;
     if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) { a.blur(); return; }
     e.preventDefault();
-    if (!$('#advSpoils').hidden) { $('#advSpoils').hidden = true; FX.sfx('back'); return; }
+    if (!$('#advSpoils').hidden) { $('#advSpoils').hidden = true; releaseStage(); FX.sfx('back'); return; }
     if (!$('#advModal').hidden) { modalClosed = true; nowKey = ''; FX.sfx('back'); render(); return; }
     if (menuOpen) { FX.sfx('back'); closeMenu(); return; }
     if (stack.length) { FX.sfx('back'); back(); return; }
@@ -1025,6 +1045,7 @@
     if (!fresh.length) return;
     const vi = fresh.findIndex((f) => f.t === 'victory');
     if (vi >= 0) {
+      holdStage(20000); // until the Victory window is closed
       const after = fresh.slice(vi + 1);
       const data = {
         xp: after.filter((f) => f.t === 'xp').reduce((a, f) => a + f.n, 0),

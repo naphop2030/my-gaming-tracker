@@ -748,7 +748,7 @@ function areaSave(room, c, name, dmgExpr, style) {
   const adv = room.adventure;
   const A = content(adv);
   const dc = 8 + prof(c) + mod(c.abilities.int) + gearBonus(adv, c).spell;
-  log(adv, 'combat', `${c.name} casts ${name}!`, { fx: { t: 'cast', by: idOf(adv, c), style } });
+  log(adv, 'combat', `${c.name} casts ${name}!`, { fx: { t: 'cast', by: idOf(adv, c), style, spell: name.toLowerCase().replace(/\s+/g, '-') } });
   for (const m of adv.combat.monsters.filter((x) => x.hp > 0)) {
     const save = d20() + (A.monsters[m.key].save || 0);
     let dmg = dice(dmgExpr);
@@ -869,7 +869,7 @@ function combatAction(room, meId, msg) {
       case 'sleep': {
         c.uses.slots -= 1;
         let pool = dice('5d8');
-        log(adv, 'combat', `${c.name} casts Sleep (${pool} HP worth).`, { fx: { t: 'cast', by: meId, style: 'arcane' } });
+        log(adv, 'combat', `${c.name} casts Sleep (${pool} HP worth).`, { fx: { t: 'cast', by: meId, style: 'arcane', spell: 'sleep' } });
         const A = content(adv);
         const targets = combat.monsters.filter((m) => m.hp > 0 && (A.monsters[m.key].xp || 0) < 200 && !A.monsters[m.key].noSleep).sort((a, b) => a.hp - b.hp);
         let slept = 0;
@@ -903,12 +903,12 @@ function combatAction(room, meId, msg) {
       case 'bless':
         c.uses.slots -= 1;
         combat.bless = 3;
-        log(adv, 'heal', `${c.name} blesses the party: +2 to hit and saves for 3 rounds.`, { fx: { t: 'cast', by: meId, style: 'holy' } });
+        log(adv, 'heal', `${c.name} blesses the party: +2 to hit and saves for 3 rounds.`, { fx: { t: 'cast', by: meId, style: 'holy', spell: 'bless' } });
         break;
       case 'spirit-weapon':
         c.uses.slots -= 1;
         c.status.spirit = { turns: 3 };
-        log(adv, 'combat', `${c.name} summons a Spiritual Weapon: a hammer of light.`, { fx: { t: 'cast', by: meId, style: 'holy' } });
+        log(adv, 'combat', `${c.name} summons a Spiritual Weapon: a hammer of light.`, { fx: { t: 'cast', by: meId, style: 'holy', spell: 'spirit-weapon' } });
         break;
       case 'mass-cure':
         c.uses.slots -= 1;
