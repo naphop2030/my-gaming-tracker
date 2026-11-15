@@ -177,7 +177,7 @@ export class Stage {
       case 'hurt': {
         const m = fx.from && foe(fx.from);
         const h = hero(fx.id);
-        if (m) m.play('attack');
+        if (m && fx.style === 'fire') { m.play('cast'); if (h) this.bursts.projectile(chest(m), chest(h), { color: 0xff6a20, time: 0.35, size: 0.6 }); } else if (m) m.play('attack');
         if (h) setTimeout(() => { h.play('hit'); h.hitFlash(); this.bursts.burst(chest(h), { color: 0xff3a2a, count: 20 }); }, m ? 300 : 0);
         return;
       }
@@ -191,6 +191,18 @@ export class Stage {
         return;
       }
       case 'defend': { const h = hero(fx.id); if (h) h.play('block'); return; }
+      case 'cast': {
+        const h = fx.by && hero(fx.by);
+        if (h) { h.play('cast'); this.bursts.burst(chest(h), { color: fx.style === 'holy' ? 0xffe9a0 : fx.style === 'fire' ? 0xff8a3a : 0xb68cff, count: 30, speed: 1.6, up: 2, gravity: 0.5 }); }
+        if (fx.style === 'fire') for (const f of this.foes.values()) if (!f.dead) setTimeout(() => this.bursts.burst(chest(f), { color: 0xff7a2a, count: 26, speed: 2.4 }), 350);
+        return;
+      }
+      case 'status': {
+        const a = hero(fx.id) || foe(fx.id);
+        if (a) this.bursts.burst(chest(a), { color: fx.status === 'poison' ? 0x8ae05a : fx.status === 'sleep' ? 0x9cb8ff : 0xffd76a, count: 18, speed: 1, up: 2, gravity: 0.3, life: 1.2 });
+        return;
+      }
+      case 'heal-foe': { const a = foe(fx.id); if (a) setTimeout(() => { a.revive(); a.play(a.clipFor('awaken') ? 'awaken' : 'idle'); }, 700); return; }
       case 'victory': for (const h of this.heroes.values()) if (!h.dead) h.play('cheer'); return;
       case 'level': { const h = hero(fx.id); if (h) this.bursts.burst(h.group.position.clone().setY(0.2), { color: 0xffd36a, count: 60, speed: 2, up: 4, gravity: 0.5, life: 1.6 }); return; }
       default: return;

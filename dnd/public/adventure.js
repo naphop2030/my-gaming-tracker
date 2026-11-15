@@ -16,7 +16,11 @@
   };
 
   const CLASS_COLORS = { fighter: '#b8443a', rogue: '#4f7d4a', wizard: '#4366a8', cleric: '#b8913a' };
-  const ACTION_ICONS = { 'second-wind': 'second-wind', 'fire-bolt': 'fire-bolt', 'magic-missile': 'magic-missile', 'sacred-flame': 'sacred-flame', 'cure-wounds': 'cure-wounds', potion: 'potion', defend: 'defend', flee: 'flee' };
+  const ACTION_ICONS = {
+    'second-wind': 'second-wind', 'fire-bolt': 'fire-bolt', 'magic-missile': 'magic-missile', 'sacred-flame': 'sacred-flame', 'cure-wounds': 'cure-wounds',
+    potion: 'potion', defend: 'defend', flee: 'flee', 'action-surge': 'attack', 'shield-bash': 'defend', hide: 'rogue', 'poison-blade': 'backstab',
+    'burning-hands': 'fire-bolt', sleep: 'magic-missile', fireball: 'fire-bolt', bless: 'sacred-flame', 'spirit-weapon': 'sacred-flame', 'mass-cure': 'cure-wounds',
+  };
   const ABIL = [['str', 'STR'], ['dex', 'DEX'], ['con', 'CON'], ['int', 'INT'], ['wis', 'WIS'], ['cha', 'CHA']];
 
   // ---------- settings ----------
@@ -96,6 +100,16 @@
     }
     return box;
   }
+  const STATUS_ICONS = { poison: '☠', sleep: 'Zz', stun: '✶', hidden: '◐', spirit: '⚒' };
+  function statusBadges(list, blessed) {
+    const box = el('span', 'status-badges');
+    for (const st of list || []) {
+      const b = el('span', `st st-${st.id}`, `${STATUS_ICONS[st.id] || ''} ${st.label}${st.turns ? ` ${st.turns}` : ''}`);
+      box.append(b);
+    }
+    if (blessed) box.append(el('span', 'st st-bless', '✦ Blessed'));
+    return box;
+  }
   const currentEntry = () => {
     const init = TT.S.initiative;
     return init.list.find((e) => e.id === init.current) || null;
@@ -126,8 +140,20 @@
     renderChatBadge();
     if (menuOpen) renderMenu(A);
     playNewEffects(S, A);
+    pickMusic(A);
   }
   window.renderAdventure = render;
+
+  // Background music follows the action.
+  const REGION_MUSIC = { village: 'town', forest: 'wild', hills: 'wild', crossroads: 'wild', ruins: 'wild', marsh: 'dark', underground: 'dark', abbey: 'dark' };
+  function pickMusic(A) {
+    if (!window.Music) return;
+    let theme;
+    if (A.combat) theme = A.combat.monsters.some((m) => m.boss && m.hp > 0 && m.key === 'priest') ? 'boss' : 'battle';
+    else theme = A.location.music || REGION_MUSIC[String(A.location.region || '').toLowerCase()] || 'wild';
+    if (!A.combat && A.ambience === 'clear' && theme !== 'dark') theme = theme === 'town' ? 'town' : 'clear';
+    window.Music.play(theme);
+  }
 
   // Reconnecting notice (the top bar is hidden in adventure mode).
   new MutationObserver(() => { $('#advConn').textContent = $('#conn').textContent; }).observe($('#conn'), { childList: true, characterData: true, subtree: true });
@@ -196,6 +222,7 @@
       r.dataset.foe = m.id;
       const name = el('span', 'foe-name');
       name.append(icon(m.icon, 'foe-ico'), el('span', '', m.name));
+      if (m.status && m.status.length) name.append(statusBadges(m.status));
       r.append(name, hpBar(m.hp, m.maxHp), el('span', 'foe-hp', m.hp > 0 ? `${m.hp}/${m.maxHp}` : 'Defeated'));
       r.title = m.hp > 0 ? `${m.name} · AC ${m.ac} · click to target` : m.name;
       r.onclick = () => chooseTarget(A, m.id);
@@ -221,6 +248,7 @@
       if (h.defending) r.classList.add('defending');
       const name = el('span', 'pm-name');
       name.append(el('b', '', h.name), el('small', '', `Lv${h.level} ${h.clsName}`));
+      if ((h.status && h.status.length) || h.blessed) name.append(statusBadges(h.status, h.blessed));
       const hp = el('span', 'pm-stat');
       hp.append(el('small', '', 'HP'), hpBar(h.hp, h.maxHp), el('span', 'pm-num', `${h.hp}/${h.maxHp}`));
       r.append(el('span', 'pm-cursor', '▶'), portrait(h.id, h.cls, 'xs'), name, hp);
@@ -372,6 +400,17 @@
         }),
       };
     }
+    if (top && top.type === 'shop') {
+      return {
+        title: `Shop · ${A.gold} G`,
+        who: whoLine(mine),
+        items: A.shop.map((it) => mi(it.name, {
+          icon: it.icon, tag: `${it.price} G`, sub: [it.stats, it.desc].filter(Boolean).join(' · '), disabled: it.price > A.gold,
+          onClick: () => TT.send({ t: 'adv:do', kind: 'buy', item: it.id }),
+        })),
+        keepCursor: true,
+      };
+    }
     if (top && top.type === 'potion') {
       return {
         title: `Healing potion (${potionsOf(A)} left)`,
@@ -388,6 +427,7 @@
       const ico = a.kind === 'inn' ? 'inn' : a.kind === 'camp' ? 'camp' : a.kind === 'buy' ? (a.item || 'potion') : 'journal';
       return mi(a.label, { icon: ico, tag: a.cost ? `${a.cost} G` : null, disabled: a.cost > A.gold, onClick: () => TT.send({ t: 'adv:do', kind: a.kind, id: a.id, item: a.item }) });
     });
+    if (A.shop && A.shop.length) items.push(mi('Shop', { icon: 'inn', tag: '▸', sub: A.shop.map((i) => i.name).join(', '), onClick: () => push({ type: 'shop' }) }));
     items.push(mi('Travel', { icon: 'map', tag: '▸', sub: `${A.exits.length} road${A.exits.length === 1 ? '' : 's'} from here`, onClick: () => push({ type: 'travel' }) }));
     const hurt = A.party.some((p) => p.hp < p.maxHp);
     if (potionsOf(A) && hurt) items.push(mi('Use a potion', { icon: 'potion', tag: '▸', onClick: () => push({ type: 'potion' }) }));
@@ -439,7 +479,7 @@
     };
     const usesTag = (a) => (a.uses === undefined ? null : `×${a.uses}`);
     if (top && top.type === 'skills') {
-      const skills = acts.filter((a) => !['attack', 'potion', 'defend', 'flee'].includes(a.id));
+      const skills = acts.filter((a) => a.skill);
       return {
         title: 'Skills',
         who: whoLine(mine),
@@ -447,19 +487,20 @@
       };
     }
     if (top && top.type === 'items') {
-      const p = find('potion');
+      const its = acts.filter((a) => a.item);
+      const invById = Object.fromEntries(A.inventory.map((i) => [i.id, i]));
       return {
         title: 'Items',
         who: whoLine(mine),
-        items: [mi('Healing potion', { icon: 'potion', tag: `×${p ? p.uses : 0}`, sub: p ? p.desc : '', disabled: !p || !p.uses, onClick: p ? choose(p) : null })],
+        items: its.length ? its.map((a) => mi(a.label, { icon: (invById[a.id.slice(5)] || {}).icon || 'potion', tag: `×${a.uses}`, sub: a.desc, onClick: choose(a) })) : [mi('No usable items', { disabled: true })],
       };
     }
     const attack = find('attack');
     const items = [mi('Attack', { icon: mine.cls === 'rogue' ? 'backstab' : 'attack', sub: attack ? attack.desc : '', onClick: choose(attack) })];
-    const skills = acts.filter((a) => !['attack', 'potion', 'defend', 'flee'].includes(a.id));
+    const skills = acts.filter((a) => a.skill);
     if (skills.length) items.push(mi('Skills', { icon: ACTION_ICONS[skills[0].id] || 'magic-missile', tag: '▸', sub: skills.map((a) => a.label).join(', '), onClick: () => push({ type: 'skills' }) }));
-    const potion = find('potion');
-    items.push(mi('Items', { icon: 'potion', tag: '▸', sub: `${potion ? potion.uses : 0} healing potion${potion && potion.uses === 1 ? '' : 's'}`, onClick: () => push({ type: 'items' }) }));
+    const its = acts.filter((a) => a.item);
+    items.push(mi('Items', { icon: 'potion', tag: '▸', sub: its.length ? its.map((a) => `${a.label} ×${a.uses}`).join(', ') : 'Nothing usable', onClick: () => push({ type: 'items' }) }));
     const defend = find('defend');
     if (defend) items.push(mi('Defend', { icon: 'defend', sub: defend.desc, onClick: () => act('defend') }));
     const flee = find('flee');
@@ -495,6 +536,7 @@
       const stats = el('div', 'cls-stats');
       for (const [k, v] of [['HP', c.hp], ['AC', c.ac], ['Weapon', c.weapon]]) { const s = el('span'); s.append(el('small', '', k), el('b', '', String(v))); stats.append(s); }
       desc.append(stats);
+      if (c.learns) desc.append(el('p', 'cls-learns', `Learns: ${c.learns.join(' · ')}`));
       info.firstChild ? info.replaceChild(desc, info.firstChild) : info.prepend(desc);
       if (preview3d) window.Preview3D.show(preview3d, cls);
       else if (!(TT.S.portraits && TT.S.portraits[TT.me.id])) pic.replaceChild(portrait(TT.me.id, cls, 'lg'), pic.firstChild);
@@ -594,22 +636,48 @@
   const pageHead = (title, sub) => { const h = el('div', 'page-head'); h.append(el('h2', '', title)); if (sub) h.append(el('p', 'hint', sub)); return h; };
 
   function pageItems(page, A) {
-    const rows = A.inventory.map((i) => {
+    const section = (title, list) => { const d = el('div', 'item-section'); d.append(el('h3', '', title), ...list); return d; };
+    const row = (i, extra) => {
       const r = el('div', 'item-row');
       const txt = el('div', 'grow');
-      txt.append(el('b', '', i.name), el('p', '', i.desc));
+      txt.append(el('b', '', i.name));
+      if (i.stats) txt.append(el('span', 'item-stats', i.stats));
+      txt.append(el('p', '', i.desc));
+      if (extra) txt.append(extra);
       r.append(icon(i.icon, 'item-ico'), txt, el('span', 'item-n', `×${i.n}`));
-      if (i.id === 'potion' && !A.combat) {
-        const hurt = A.party.filter((p) => p.hp < p.maxHp);
-        if (hurt.length) {
-          const pick = el('div', 'use-row');
-          for (const p of hurt) pick.append(button(`Use on ${p.name} (${p.hp}/${p.maxHp})`, 'btn small', () => TT.send({ t: 'adv:use', item: 'potion', ally: p.id })));
-          txt.append(pick);
-        }
-      }
       return r;
+    };
+    const consumables = A.inventory.filter((i) => i.kind === 'consumable').map((i) => {
+      let extra = null;
+      if (i.usable === 'any' && !A.combat) {
+        extra = el('div', 'use-row');
+        for (const p of A.party) {
+          const full = i.id === 'elixir' ? !(p.cls === 'wizard' || p.cls === 'cleric') : p.hp >= p.maxHp;
+          const b = button(`Use on ${p.name}${i.id === 'elixir' ? '' : ` (${p.hp}/${p.maxHp})`}`, 'btn small', () => TT.send({ t: 'adv:use', item: i.id, ally: p.id }));
+          b.disabled = full;
+          extra.append(b);
+        }
+      } else if (i.usable === 'combat') extra = el('p', 'hint', 'Use it in battle: Items ▸');
+      return row(i, extra);
     });
-    page.replaceChildren(pageHead('Items', `Party gold: ${A.gold} G`), ...(rows.length ? rows : [el('p', 'hint', 'Your pack is empty.')]));
+    const gear = A.inventory.filter((i) => i.kind === 'gear').map((i) => {
+      const extra = el('div', 'use-row');
+      for (const p of A.party) {
+        const ok = !i.classes || i.classes.includes(p.cls);
+        const b = button(`Equip on ${p.name}`, 'btn small', () => TT.send({ t: 'adv:equip', item: i.id, hero: p.id }));
+        b.disabled = !ok || !!A.combat;
+        if (!ok) b.title = 'This class can\'t use it';
+        extra.append(b);
+      }
+      return row(i, extra);
+    });
+    const keys = A.inventory.filter((i) => i.kind === 'key').map((i) => row(i));
+    const parts = [pageHead('Items', `Party gold: ${A.gold} G · Equipment goes to one hero; see Status for what each hero wears.`)];
+    if (consumables.length) parts.push(section('Consumables', consumables));
+    if (gear.length) parts.push(section('Equipment', gear));
+    if (keys.length) parts.push(section('Treasures & key items', keys));
+    if (parts.length === 1) parts.push(el('p', 'hint', 'Your pack is empty.'));
+    page.replaceChildren(...parts);
   }
 
   function pageStatus(page, A) {
@@ -648,7 +716,23 @@
       ab.append(c);
     }
     right.append(ab);
-    if (sheet.notes) right.append(el('p', 'status-notes', sheet.notes));
+    const gear = el('div', 'gear-grid');
+    for (const [slot, label] of [['weapon', 'Weapon'], ['armor', 'Armor'], ['trinket', 'Trinket']]) {
+      const g = h.gear && h.gear[slot];
+      const cell = el('div', `gear-slot${g ? ' on' : ''}`);
+      cell.append(el('small', '', label));
+      if (g) {
+        cell.append(el('b', '', g.name), el('span', 'item-stats', g.stats));
+        if (!A.combat) cell.append(button('Remove', 'btn ghost small', () => TT.send({ t: 'adv:unequip', slot, hero: h.id })));
+      } else cell.append(el('span', 'hint', slot === 'weapon' ? h.weapon : 'Empty'));
+      gear.append(cell);
+    }
+    right.append(el('h4', 'status-sub', 'Equipment'), gear);
+    const tal = el('div', 'talent-list');
+    for (const t of h.talents || []) { const d = el('div', 'talent'); d.append(el('b', '', t.name), el('span', '', t.desc)); tal.append(d); }
+    if (!(h.talents || []).length) tal.append(el('p', 'hint', 'No talents yet. They come with levels.'));
+    right.append(el('h4', 'status-sub', 'Talents'), tal);
+    if (h.nextTalent) right.append(el('p', 'hint', `Next level: ${h.nextTalent}`));
     card.append(left, right);
     page.replaceChildren(pageHead('Status'), tabs, card);
   }
@@ -792,7 +876,20 @@
       r.append(t, sw);
       return r;
     };
-    const rows = [toggle('Sound effects', !FX.muted, (v) => FX.setMuted(!v), 'Dice, hits, spells, coins and menu sounds.')];
+    const rows = [toggle('Sound effects', !FX.muted, (v) => FX.setMuted(!v), 'Swords, spells, coins, footsteps and menu sounds.')];
+    if (window.Music) {
+      const r = toggle('Music', window.Music.enabled, (v) => window.Music.setEnabled(v), 'Original music that changes with the place and the battle.');
+      const vol = el('input');
+      vol.type = 'range';
+      vol.min = '0';
+      vol.max = '100';
+      vol.value = String(Math.round(window.Music.volume * 100));
+      vol.className = 'vol';
+      vol.setAttribute('aria-label', 'Music volume');
+      vol.oninput = () => window.Music.setVolume(Number(vol.value) / 100);
+      r.firstChild.append(vol);
+      rows.push(r);
+    }
     if (window.Board3D) rows.push(toggle('3D graphics', use3d(), (v) => { store.set('dnd.3d', v ? '1' : '0'); nowKey = ''; }, '3D world map, battles and dice. Turn off on slower computers.'));
     rows.push(toggle('Auto-switch players in battle', TT.followTurns, (v) => TT.setFollowTurns(v), 'When several players share this screen.'));
     page.replaceChildren(pageHead('Settings'), ...rows);
@@ -813,6 +910,10 @@
       p('Choices with a d20 are checks: the game rolls a d20 and adds the bonus of the hero who chooses. Reach the number shown to succeed, so let the best hero try.'),
       el('h3', '', 'Battles'),
       p('Heroes take turns. On your turn pick Attack and a target, a Skill, an Item, Defend or Run. The game plays the monsters.'),
+      el('h3', '', 'Levels, talents and gear'),
+      p('Heroes learn a new talent at levels 2, 3 and 5, and train their main ability at level 4 (see Status). Buy gear at Brann\'s smithy or earn it on quests, then equip it from Items.'),
+      el('h3', '', 'Status effects'),
+      p('Poisoned creatures take damage each turn. Sleeping and stunned ones lose their turn (sleepers wake when hit). Hidden heroes can\'t be targeted. Blessed heroes get +2 to hit.'),
       el('h3', '', 'Resting'),
       p('Rest at an inn to recover HP and spells. Camping heals half your HP, but something may find you.'),
       el('h3', '', 'Sharing one screen'),

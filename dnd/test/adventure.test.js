@@ -123,7 +123,10 @@ test('fuzz: thousands of random actions never crash or break invariants', () => 
         const a = acts[Math.floor(Math.random() * acts.length)];
         const living = view.combat.monsters.filter((m) => m.hp > 0);
         msg = { t: 'adv:act', action: a.id, target: living[0] && living[0].id, ally: ids[Math.floor(Math.random() * ids.length)] };
-        act(room, cur.owner, msg);
+        try { act(room, cur.owner, msg); } catch (e) {
+          if (!(e instanceof adventure.GameError)) throw e;
+          act(room, cur.owner, { t: 'adv:act', action: 'defend' }); // a rule said no; just defend
+        }
       } else {
         const opts = [];
         if (view.scene) {
@@ -133,6 +136,8 @@ test('fuzz: thousands of random actions never crash or break invariants', () => 
           for (const a of view.actions) opts.push({ t: 'adv:do', kind: a.kind, id: a.id, item: a.item });
         }
         for (const e of view.exits) if (e.ok) opts.push({ t: 'adv:travel', to: e.to });
+        for (const it of view.inventory) if (it.slot) opts.push({ t: 'adv:equip', item: it.id, hero: ids[Math.floor(Math.random() * ids.length)] });
+        if (Math.random() < 0.05) opts.push({ t: 'adv:unequip', slot: 'armor', hero: id });
         msg = opts[Math.floor(Math.random() * opts.length)];
         if (Math.random() < 0.3) room.adventure.gold += 20; // let them afford things
         try { act(room, id, msg); } catch (e) {
@@ -151,4 +156,100 @@ test('fuzz: thousands of random actions never crash or break invariants', () => 
       assert.ok(room.adventure.gold >= 0);
     }
   }
+});
+
+test('heroes learn talents as they level up', () => {
+  const room = newGame([['w', 'Wiz', 'wizard'], ['f', 'Fig', 'fighter'], ['r', 'Rog', 'rogue'], ['c', 'Cle', 'cleric']]);
+  adventure._giveXp(room.adventure, 6500);
+  const v = adventure.view(room, 'w');
+  const w = v.party.find((p) => p.id === 'w');
+  assert.strictEqual(w.level, 5);
+  assert.deepStrictEqual(w.talents.map((t) => t.id), ['burning-hands', 'sleep', 'asi', 'fireball']);
+  assert.strictEqual(room.adventure.party.w.abilities.int, 18, 'level 4 training raises INT');
+  assert.ok(room.adventure.log.some((e) => /Learned: Fireball/.test(e.text)));
+  // In a fight, the new talents are on the menu.
+  room.adventure.location = 'old-road';
+  room.adventure.flags['q-wolves'] = true;
+  act(room, 'w', { t: 'adv:do', kind: 'scene', id: 'wolf-den' });
+  choose(room, 'w', 'Attack');
+  const ids = Object.fromEntries(['w', 'f', 'r', 'c'].map((id) => [id, (adventure.view(room, id).myActions || []).map((a) => a.id)]));
+  const cur = room.initiative.list.find((e) => e.id === room.initiative.current).owner;
+  const acts = adventure.view(room, cur).myActions.map((a) => a.id);
+  const expect = { w: 'fireball', f: 'action-surge', r: 'hide', c: 'mass-cure' }[cur];
+  assert.ok(acts.includes(expect), `${cur} should have ${expect}: ${acts}`);
+  void ids;
+});
+
+test('area spells, sleep and poison work in a fight', () => {
+  const room = newGame([['w', 'Wiz', 'wizard']]);
+  adventure._giveXp(room.adventure, 2700); // level 4
+  const c = room.adventure.party.w;
+  c.maxHp = c.hp = 999;
+  room.adventure.location = 'old-road';
+  room.adventure.flags['q-wolves'] = true;
+  act(room, 'w', { t: 'adv:do', kind: 'scene', id: 'wolf-den' });
+  choose(room, 'w', 'Attack');
+  act(room, 'w', { t: 'adv:act', action: 'burning-hands' });
+  assert.ok(room.adventure.log.some((e) => /casts Burning Hands/.test(e.text)));
+  if (room.adventure.combat) {
+    act(room, 'w', { t: 'adv:act', action: 'sleep' });
+    assert.ok(room.adventure.log.some((e) => /casts Sleep/.test(e.text)));
+  }
+  fight(room);
+});
+
+test('equipment changes stats and can be swapped', () => {
+  const room = newGame([['f', 'Fig', 'fighter']]);
+  const A = room.adventure;
+  const before = adventure.view(room, 'f').party[0];
+  A.inventory['chain-shirt'] = 1;
+  A.inventory['vigor-ring'] = 1;
+  A.inventory['steel-sword'] = 1;
+  act(room, 'f', { t: 'adv:equip', item: 'chain-shirt' });
+  act(room, 'f', { t: 'adv:equip', item: 'vigor-ring' });
+  act(room, 'f', { t: 'adv:equip', item: 'steel-sword' });
+  const after = adventure.view(room, 'f').party[0];
+  assert.strictEqual(after.ac, before.ac + 2);
+  assert.strictEqual(after.maxHp, before.maxHp + 6);
+  assert.strictEqual(after.weapon, 'Steel longsword');
+  assert.strictEqual(A.inventory['chain-shirt'], 0);
+  act(room, 'f', { t: 'adv:unequip', slot: 'trinket' });
+  assert.strictEqual(adventure.view(room, 'f').party[0].maxHp, before.maxHp);
+  assert.strictEqual(A.inventory['vigor-ring'], 1);
+  A.inventory['ashwood-staff'] = 1;
+  assert.throws(() => act(room, 'f', { t: 'adv:equip', item: 'ashwood-staff' }), /Only a Wizard or Cleric/);
+});
+
+test('consumables: potions, elixirs and fire flasks', () => {
+  const room = newGame([['w', 'Wiz', 'wizard']]);
+  const A = room.adventure;
+  A.party.w.uses.slots = 0;
+  A.inventory.elixir = 1;
+  act(room, 'w', { t: 'adv:use', item: 'elixir', ally: 'w' });
+  assert.strictEqual(A.party.w.uses.slots, 1);
+  A.inventory['fire-flask'] = 1;
+  assert.throws(() => act(room, 'w', { t: 'adv:use', item: 'fire-flask' }), /Save that for a fight/);
+});
+
+test('travel events appear and resolve', () => {
+  const room = newGame([['p', 'P', 'rogue']]);
+  room.adventure.location = 'old-road';
+  for (let i = 0; i < 20 && !room.adventure.scene; i++) adventure._maybeEvent(room, true);
+  assert.ok(room.adventure.scene && room.adventure.scene.startsWith('ev-'), 'an event scene opened');
+  const sc = v(room, 'p').scene;
+  assert.ok(sc.choices.length > 0);
+});
+
+test('the boss summons help and uses Cinder Burst', () => {
+  const room = newGame([['a', 'A', 'fighter'], ['b', 'B', 'cleric']]);
+  for (const c of Object.values(room.adventure.party)) { c.maxHp = 900; c.hp = 900; }
+  room.adventure.location = 'abbey';
+  room.adventure.flags['courtyard-clear'] = true;
+  act(room, 'a', { t: 'adv:do', kind: 'scene', id: 'tower' });
+  choose(room, 'a', 'Fight');
+  const boss = room.adventure.combat.monsters.find((m) => m.key === 'priest');
+  boss.hp = boss.maxHp = 240; // long enough to see her tricks
+  fight(room);
+  assert.ok(room.adventure.log.some((e) => /Cinder Burst/.test(e.text)), 'burst happened');
+  assert.ok(room.adventure.log.some((e) => /shrieks for her Choir/.test(e.text)), 'summon happened');
 });

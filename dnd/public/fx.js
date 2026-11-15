@@ -148,6 +148,7 @@
       try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch { return null; }
     }
     if (audio.state === 'suspended') audio.resume();
+    loadSamples();
     return audio;
   }
   function tone(freq, dur, { type = 'sine', vol = 0.15, at = 0, slide = 0 } = {}) {
@@ -184,7 +185,58 @@
     src.connect(f).connect(g).connect(a.destination);
     src.start(t);
   }
+  // Recorded sound effects (Kenney's RPG Audio and Impact Sounds, CC0), loaded on first use.
+  const SAMPLE_SETS = {
+    hit: ['hit1', 'hit2', 'hit3'], punch: ['punch1', 'punch2'], slice: ['slice1', 'slice2'], chop: ['chop'], swish: ['swish'],
+    thud: ['thud'], block: ['block'], crit: ['crit'], bell: ['bell'], coins: ['coins1', 'coins2'], page: ['page', 'page2'],
+    bookOpen: ['book-open'], bookClose: ['book-close'], step: ['step1', 'step2', 'step3'], glass: ['glass'], pickup: ['pickup'],
+    equip: ['equip'], cloth: ['cloth'], door: ['door'], creak: ['creak'], bones: ['bones'],
+  };
+  const buffers = new Map();
+  let loading = false;
+  function loadSamples() {
+    if (loading || !audio) return;
+    loading = true;
+    for (const name of new Set(Object.values(SAMPLE_SETS).flat())) {
+      fetch(`/audio/sfx/${name}.mp3`).then((r) => r.arrayBuffer()).then((b) => audio.decodeAudioData(b)).then((buf) => buffers.set(name, buf)).catch(() => {});
+    }
+  }
+  // Plays a random take from a sample set. Returns false if it isn't loaded (so a synth sound can stand in).
+  function sample(set, { vol = 0.5, at = 0, rate = 1 } = {}) {
+    const a = ac();
+    if (!a) return true;
+    loadSamples();
+    const names = (SAMPLE_SETS[set] || []).filter((n) => buffers.has(n));
+    if (!names.length) return false;
+    const src = a.createBufferSource();
+    src.buffer = buffers.get(names[Math.floor(Math.random() * names.length)]);
+    src.playbackRate.value = rate * (0.94 + Math.random() * 0.12);
+    const g = a.createGain();
+    g.gain.value = vol;
+    src.connect(g).connect(a.destination);
+    src.start(a.currentTime + at);
+    return true;
+  }
+
   const SOUNDS = {
+    // recorded first, synthesized as a fallback
+    hitS() { if (!sample('hit', { vol: 0.55 })) SOUNDS.hit(); },
+    stabS() { if (!sample('slice', { vol: 0.6 })) SOUNDS.hit(); },
+    punchS() { if (!sample('punch', { vol: 0.55 })) SOUNDS.hurt(); },
+    critS() { sample('crit', { vol: 0.6 }); SOUNDS.crit(); },
+    missS() { if (!sample('swish', { vol: 0.45 })) SOUNDS.miss(); },
+    killS(undead) { if (!sample(undead ? 'bones' : 'thud', { vol: 0.6 })) SOUNDS.hurt(); },
+    blockS() { if (!sample('block', { vol: 0.5 })) SOUNDS.miss(); },
+    coinsS() { if (!sample('coins', { vol: 0.5 })) SOUNDS.coins(); },
+    pickupS() { if (!sample('pickup', { vol: 0.55 })) SOUNDS.coins(); },
+    equipS() { if (!sample('equip', { vol: 0.55 })) SOUNDS.select(); },
+    potionS() { sample('glass', { vol: 0.4 }); SOUNDS.heal(); },
+    pageS() { if (!sample('page', { vol: 0.5 })) SOUNDS.quest(); },
+    stepsS() { for (let i = 0; i < 4; i++) sample('step', { vol: 0.35, at: i * 0.28 }); },
+    restS() { sample('cloth', { vol: 0.45 }); SOUNDS.heal(); },
+    bellS() { if (!sample('bell', { vol: 0.7 })) SOUNDS.bell(); else SOUNDS.bell(); },
+    menuS() { if (!sample('bookOpen', { vol: 0.35 })) SOUNDS.open(); },
+    bonesS() { if (!sample('bones', { vol: 0.6 })) SOUNDS.hurt(); },
     dice() { for (let i = 0; i < 7; i++) noise(0.04, { at: i * 0.07 + Math.random() * 0.03, vol: 0.25, freq: 2500 + Math.random() * 1500, q: 4 }); },
     land(ok) { if (ok) { tone(523, 0.18, { vol: 0.1 }); tone(784, 0.3, { vol: 0.1, at: 0.1 }); } else { tone(196, 0.35, { type: 'triangle', vol: 0.12, slide: -60 }); } },
     hit() { tone(140, 0.18, { type: 'triangle', vol: 0.22, slide: -80 }); noise(0.12, { vol: 0.2, freq: 900 }); },
@@ -330,36 +382,38 @@
         strike(foe(fx.id), fx.style || 'slash');
         pulse(foe(fx.id), 'fx-shake');
         floatText(foe(fx.id), fx.crit ? `CRIT −${fx.n}` : `−${fx.n}`, fx.crit ? 'crit' : 'dmg');
-        play(fx.crit ? 'crit' : (fx.style === 'fire' ? 'fire' : fx.style === 'arcane' ? 'arcane' : fx.style === 'holy' ? 'holy' : 'hit'));
+        play(fx.crit ? 'critS' : (fx.style === 'fire' ? 'fire' : fx.style === 'arcane' ? 'arcane' : fx.style === 'holy' ? 'holy' : fx.style === 'poison' ? 'hurt' : fx.style === 'stab' ? 'stabS' : 'hitS'));
         await wait(520); return;
       case 'miss':
         floatText(fx.from ? hero(fx.id) : foe(fx.id), 'Miss', 'miss');
-        play('miss');
+        play(fx.from ? 'blockS' : 'missS');
         await wait(380); return;
       case 'kill':
         burst(foe(fx.id), 'dark', 14);
         floatText(foe(fx.id), '☠', 'kill');
+        play('killS');
         await wait(420); return;
       case 'hurt':
         pulse(hero(fx.id), 'fx-shake');
         floatText(hero(fx.id), fx.crit ? `CRIT −${fx.n}` : `−${fx.n}`, fx.crit ? 'crit' : 'dmg');
         if (fx.id === ctx.meId) pulse('#adventure', 'fx-hurt', 700);
-        play('hurt');
+        play(fx.style === 'fire' ? 'fire' : 'punchS');
         await wait(480); return;
       case 'down':
         floatText(hero(fx.id), 'Down!', 'crit');
         await wait(400); return;
       case 'heal':
         burst(hero(fx.id), 'green', 12);
-        floatText(hero(fx.id), `+${fx.n}`, 'heal');
-        play('heal');
+        if (fx.n) floatText(hero(fx.id), `+${fx.n}`, 'heal');
+        play('potionS');
         await wait(450); return;
       case 'defend':
         pulse(hero(fx.id), 'fx-defend', 900);
+        play('blockS');
         await wait(250); return;
       case 'gold':
-        floatText('#advGold', `+${fx.n}`, 'gold');
-        play('coins');
+        floatText('#advGold', fx.n > 0 ? `+${fx.n}` : `${fx.n}`, 'gold');
+        play('coinsS');
         await wait(250); return;
       case 'item': {
         const r = rectOf('#advStory') || { left: innerWidth / 2, top: innerHeight / 2, width: 0, height: 0 };
@@ -370,18 +424,29 @@
         i.style.top = `${r.top + r.height / 2}px`;
         overlay().append(i);
         setTimeout(() => i.remove(), 1300);
-        play('coins');
+        play('pickupS');
         await wait(500); return;
       }
       case 'level':
         burst(hero(fx.id), 'gold', 22);
         play('level');
-        await banner(`${ctx.nameOf(fx.id)} reached level ${ctx.levelOf(fx.id)}!`, 'gold', 'level', 1500); return;
-      case 'quest': play('quest'); return;
+        await banner(`${ctx.nameOf(fx.id)} reached level ${ctx.levelOf(fx.id)}!${fx.learned ? ` New: ${fx.learned}` : ''}`, 'gold', 'level', fx.learned ? 2200 : 1500); return;
+      case 'quest': play('pageS'); return;
+      case 'travel': play('stepsS'); return;
+      case 'rest': play('restS'); return;
+      case 'equip': play('equipS'); return;
+      case 'cast': play(fx.style === 'holy' ? 'holy' : fx.style === 'fire' ? 'fire' : 'arcane'); await wait(250); return;
+      case 'status': {
+        const label = { poison: 'Poisoned!', sleep: 'Zzz…', stun: 'Stunned!' }[fx.status] || fx.status;
+        floatText(document.querySelector(`[data-hero="${fx.id}"]`) ? hero(fx.id) : foe(fx.id), label, 'miss');
+        play(fx.status === 'poison' ? 'hurt' : 'arcane');
+        await wait(300); return;
+      }
+      case 'heal-foe': floatText(foe(fx.id), 'Rises again!', 'crit'); play('bonesS'); await wait(400); return;
       case 'combat': play('combat'); await banner('Combat!', 'red', 'combat', 900); return;
       case 'victory': play('victory'); await banner('Victory!', 'gold', 'level', 1300); return;
       case 'defeat': play('defeat'); await banner('Defeated…', 'dark', 'skull', 1800); return;
-      case 'ending': play('bell'); await banner('The Bell Sings Again', 'gold', 'bell', 2400); return;
+      case 'ending': play('bellS'); await banner('The Bell Sings Again', 'gold', 'bell', 2400); return;
       default: return;
     }
   }
@@ -415,6 +480,6 @@
     get muted() { return muted; },
     setMuted(v) { muted = !!v; store.set('dnd.mute', muted ? '1' : '0'); if (!muted) play('coins'); },
     reduced,
-    sfx: (name) => play(name),
+    sfx: (name) => play(name === 'open' ? 'menuS' : name),
   };
 })();

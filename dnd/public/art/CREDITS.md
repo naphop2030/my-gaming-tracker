@@ -28,6 +28,16 @@ All 3D models are **CC0 (public domain)**: free for any use, no credit required.
 
 `scripts/build-models.mjs` explains how the files in `public/models/` were made from these packs: unused animations removed, and the meshes compressed.
 
+## Sound effects
+
+**Kenney** ([kenney.nl](https://kenney.nl)), *RPG Audio* and *Impact Sounds*, CC0 (public domain), via the
+[kenney-rpg-audio](https://github.com/Boyquotes/kenney-rpg-audio-for-godot) and
+[kenney-impact-sounds](https://github.com/Boyquotes/kenney-impact-sounds-for-godot) mirrors. Converted to MP3 in `public/audio/sfx/`.
+
+## Music
+
+The background music is original. It's composed live in the browser by `public/music.js`, so there are no audio files and no license to worry about.
+
 ## Code libraries
 
 - [three.js](https://threejs.org) (MIT license), copied into `public/vendor/three/`.

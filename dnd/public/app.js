@@ -99,6 +99,38 @@
     window.Menus.init(lobbyMenu, false);
     showHelp(lobbyMenu.querySelector('.mi.sel'));
   }).catch(() => {});
+  // Recently played games, for "Continue" on the title screen.
+  const RECENT = 'dnd.recent';
+  const recentGames = () => { try { return JSON.parse(store.get(RECENT) || '[]').filter((g) => g && /^[A-Z0-9]{6}$/.test(g.code)); } catch { return []; } };
+  function rememberGame(code, title, mode) {
+    const list = recentGames().filter((g) => g.code !== code);
+    list.unshift({ code, title, mode, at: Date.now() });
+    store.set(RECENT, JSON.stringify(list.slice(0, 4)));
+  }
+  function forgetGame(code) { store.set(RECENT, JSON.stringify(recentGames().filter((g) => g.code !== code))); }
+  function renderRecent() {
+    const box = $('#recentList');
+    box.replaceChildren(...recentGames().map((g) => {
+      const when = new Date(g.at);
+      const b = el('button', 'mi continue', `Continue: ${g.title}`);
+      b.type = 'button';
+      b.append(el('span', 'mi-tag', g.code));
+      b.dataset.help = `Rejoin your ${g.mode === 'adventure' ? 'adventure' : 'tabletop'} game (code ${g.code}), last played ${when.toLocaleDateString()} ${when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`;
+      b.onclick = async () => {
+        if (!readName()) return;
+        try {
+          const res = await fetch(`/api/rooms/${g.code}`);
+          if (!res.ok) { forgetGame(g.code); renderRecent(); return lobbyError('That game is gone from the server.'); }
+          enter(g.code);
+        } catch { lobbyError('Could not reach the server.'); }
+      };
+      return b;
+    }));
+    window.Menus.init(lobbyMenu, false);
+    showHelp(lobbyMenu.querySelector('.mi.sel'));
+  }
+  renderRecent();
+
   $('#joinOpen').onclick = () => {
     $('#joinRow').hidden = false;
     $('#lobbyCode').focus();
@@ -189,6 +221,7 @@
         if (!active) return;
         const first = !S;
         S = m.state;
+        if (first) rememberGame(roomCode, S.adventure ? S.adventure.title : 'Free Tabletop', S.mode);
         render();
         if (first) fitView();
         followTurn();
@@ -327,6 +360,8 @@
   });
 
   function leave() {
+    setTimeout(renderRecent, 0);
+    if (window.Music) window.Music.play('title');
     leaving = true;
     for (const c of conns.values()) if (c.ws) c.ws.close();
     conns.clear();
@@ -376,6 +411,7 @@
     if (S.mode === 'adventure' && $('.tabs button.active').dataset.tab === 'tokens') $('.tabs button[data-tab=chat]').click();
     if (window.renderAdventure) window.renderAdventure();
     if (S.mode === 'adventure') return;
+    if (window.Music) window.Music.play('title');
     loadBackground();
     draw();
   }

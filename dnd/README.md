@@ -17,6 +17,17 @@ Start **Play an adventure** and the game runs the story for you. Everyone (inclu
 
 The included adventure is **The Ashen Vale**: 8 locations, a main quest, 3 side quests, and 8 kinds of monsters. It takes roughly 1–2 hours and suits 2–4 heroes. Solo players can run two or three heroes from one screen.
 
+### What's in a hero's journey
+
+- **Talents:** every class learns new moves as it levels up. Fighters get Action Surge, Shield Bash and Extra Attack. Rogues get Hide, Poisoned Blade and Uncanny Dodge. Wizards get Burning Hands, Sleep and Fireball. Clerics get Bless, Spiritual Weapon and Mass Cure. Level 4 trains your main ability.
+- **Gear:** weapons, armor and trinkets (one of each per hero). Buy them at Brann's smithy, or earn them on quests: Vesh's cutlass, a silver dagger that bites the undead, warded monk robes, a ring of vigor and more. Equip them from Menu → Items.
+- **Consumables:** healing and greater healing potions, elixirs of focus (restore a spell slot) and fire flasks to throw.
+- **Status effects:** poison, sleep, stun, hiding, blessing and a spiritual hammer.
+- **Monster tricks:** wolves hunt as a pack, spiders poison, skeletal monks can rattle back together (holy damage stops them), bog zombies refuse to fall, and the Cinder Priest unleashes Cinder Burst and calls her Choir.
+- **Travel events:** a wandering peddler, a wayside shrine, an injured pilgrim, healing herbs, an abandoned cart, ash storms and an old friend.
+- **Music and sound:** original music for town, the wilds, dark places, battles and the boss, plus recorded sound effects for swords, footsteps, coins and pages. Music and sound each have their own switch in Settings.
+- **Continue:** the title screen remembers your recent games, so there's no need to remember the code.
+
 ### Screen layout and controls
 
 The adventure screen uses classic RPG-style windows:
@@ -146,6 +157,8 @@ npm test   # dice tests, a multiplayer session against the real server, full adv
 | `adventures/` | Adventure content (story, map, monsters) |
 | `dice.js` | Dice expression parser |
 | `public/menu.js` | Window-menu cursor, keyboard controls and menu sounds |
+| `public/music.js` | Original background music, composed live in the browser |
+| `public/audio/sfx/` | Recorded sound effects (Kenney, CC0) |
 | `public/fx.js` | Weather particles, combat effects, dice animation and sounds |
 | `public/3d/` | 3D world board, battle stage, dice and hero preview (three.js) |
 | `public/models/` | Optimized 3D models (built by `scripts/build-models.mjs`) |

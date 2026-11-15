@@ -11,7 +11,9 @@
 //   `success` / `failure` outcomes, or be an outcome itself.
 // - outcomes can use: text, set (flags), give/take (items), gold, xp (each hero), damage (the hero
 //   who chose), healAll, quest ({ id, title, text, done }), goto (location), scene (next scene),
-//   combat (list of monster ids, with `win` outcome and `flee: false`), end ({ title, text }).
+//   combat (list of monster ids, with `win` outcome and `flee: false`), end ({ title, text }),
+//   damageAll, healParty ('half' or dice), restoreSlots.
+// - events: random scenes when you arrive somewhere (see `events` below). items/monsters: see their comments.
 // - conditions (`when`) are flag names, 'item:<id>', or '!...' to negate. Arrays mean "all of".
 //   Every scene you open sets the flag 'seen:<scene id>'.
 // - Looks: each location can set `effect` (fog, fireflies, embers, wisps, drips, smoke) and `image`
@@ -31,22 +33,41 @@ module.exports = {
   ambience: { default: 'ash', when: [{ when: 'bell-rung', value: 'clear' }] },
   defeat: 'Darkness takes you... You wake in a bed at the Sleeping Ember, bandaged and sore. A farmer found you and carted you back to Thornwick. Your purse is lighter than it was.',
 
+  // kind 'consumable' items are used up; items with a `slot` are equipment (one weapon, armor and trinket per hero).
   items: {
-    potion: { name: 'Healing potion', desc: 'Restores 2d4+2 hit points. Can bring a fallen ally back.', heal: '2d4+2' },
+    potion: { name: 'Healing potion', kind: 'consumable', desc: 'Restores 2d4+2 HP. Can bring a fallen ally back.', heal: '2d4+2' },
+    'greater-potion': { name: 'Greater healing potion', kind: 'consumable', desc: 'Restores 4d4+4 HP.', heal: '4d4+4', icon: 'potion' },
+    elixir: { name: 'Elixir of focus', kind: 'consumable', desc: 'A spellcaster regains one spell slot.', restoreSlot: 1, icon: 'magic-missile' },
+    'fire-flask': { name: 'Fire flask', kind: 'consumable', desc: 'Throw it at an enemy: 2d6 fire damage.', throw: '2d6', icon: 'fire-bolt' },
+    'steel-sword': { name: 'Steel longsword', slot: 'weapon', atk: 1, dmg: 1, desc: 'Well balanced, freshly sharpened by the Thornwick smith.', icon: 'attack' },
+    'redcap-blade': { name: 'Redcap\'s cutlass', slot: 'weapon', dmg: 2, desc: 'Vesh\'s own blade, heavy and cruel.', icon: 'attack' },
+    'silver-dagger': { name: 'Silver dagger', slot: 'weapon', atk: 1, extra: '1d6', vs: 'undead', desc: 'Blessed silver from a drowned shrine. Deadly to the undead.', icon: 'backstab' },
+    'ashwood-staff': { name: 'Ashwood staff', slot: 'weapon', spell: 1, desc: 'Sable\'s old staff. +1 to spell attacks and spell save DCs.', classes: ['wizard', 'cleric'], icon: 'magic-missile' },
+    'studded-leather': { name: 'Studded leather', slot: 'armor', ac: 1, desc: 'Light, quiet armor.', icon: 'defend' },
+    'chain-shirt': { name: 'Chain shirt', slot: 'armor', ac: 2, desc: 'Fine rings of steel, worn under a tunic.', icon: 'defend' },
+    'monk-robes': { name: 'Warded monk robes', slot: 'armor', ac: 1, hp: 4, desc: 'Embroidered with protective prayers.', icon: 'cleric' },
+    'lucky-coin': { name: 'Odo\'s lucky coin', slot: 'trinket', check: 1, desc: '+1 to every skill check. "Never failed me yet!"', icon: 'gold' },
+    'vigor-ring': { name: 'Ring of vigor', slot: 'trinket', hp: 6, desc: '+6 max HP.', icon: 'level' },
+    'moon-charm': { name: 'Moon charm', desc: 'A silver crescent from the fey stones. +1 AC for the whole party while you carry it.', acBonus: 1 },
     'abbey-key': { name: 'Abbot Corwin\'s key', desc: 'A heavy iron key stamped with a bell. It opens the abbey gates.' },
-    'moon-charm': { name: 'Moon charm', desc: 'A silver crescent from the fey stones. +1 AC for the whole party.', acBonus: 1 },
     'choir-note': { name: 'Cultist\'s note', desc: '"The Cinder Priest awaits in the tower. Let no one touch the bell."' },
   },
 
+  // Monster extras: gold (dice), drop { item, chance }, pack (bonus to hit with friends), poison { chance, dmg, turns },
+  // reassemble (undead that may rise again), fortitude (may refuse to fall), type, burst and summon (boss moves).
   monsters: {
-    wolf: { name: 'Wolf', hp: 9, ac: 13, atk: 3, dmg: '1d6+1', xp: 50, init: 2, save: 2, verb: 'snaps at' },
-    spider: { name: 'Giant Spider', hp: 13, ac: 13, atk: 4, dmg: '1d6+2', xp: 50, init: 3, save: 3, verb: 'bites' },
-    bandit: { name: 'Bandit', hp: 11, ac: 12, atk: 3, dmg: '1d6+1', xp: 25, init: 1, save: 1, verb: 'slashes at' },
-    vesh: { name: 'Redcap Vesh', hp: 24, ac: 14, atk: 4, dmg: '1d4+2', attacks: 2, xp: 200, init: 3, save: 3, verb: 'cuts at' },
-    zombie: { name: 'Bog Zombie', hp: 20, ac: 8, atk: 3, dmg: '1d6+1', xp: 50, init: -2, save: -2, verb: 'claws at' },
-    skeleton: { name: 'Skeletal Monk', hp: 13, ac: 13, atk: 4, dmg: '1d6+2', xp: 50, init: 2, save: 2, verb: 'swings a censer at' },
-    cultist: { name: 'Ash Cultist', hp: 9, ac: 12, atk: 3, dmg: '1d6+1', xp: 25, init: 1, save: 1, verb: 'stabs at' },
-    priest: { name: 'The Cinder Priest', hp: 42, ac: 13, atk: 5, dmg: '2d6+1', xp: 450, init: 1, save: 3, verb: 'hurls fire at' },
+    wolf: { name: 'Wolf', hp: 9, ac: 13, atk: 3, dmg: '1d6+1', xp: 50, init: 2, save: 2, verb: 'snaps at', type: 'beast', pack: true },
+    spider: { name: 'Giant Spider', hp: 13, ac: 13, atk: 4, dmg: '1d6+2', xp: 50, init: 3, save: 3, verb: 'bites', type: 'beast', poison: { chance: 0.4, dmg: '1d4', turns: 2 } },
+    bandit: { name: 'Bandit', hp: 11, ac: 12, atk: 3, dmg: '1d6+1', xp: 25, init: 1, save: 1, verb: 'slashes at', type: 'humanoid', gold: '2d6', drop: { item: 'potion', chance: 0.2 } },
+    vesh: { name: 'Redcap Vesh', hp: 24, ac: 14, atk: 4, dmg: '1d4+2', attacks: 2, xp: 200, init: 3, save: 3, verb: 'cuts at', type: 'humanoid', gold: '4d6' },
+    zombie: { name: 'Bog Zombie', hp: 20, ac: 8, atk: 3, dmg: '1d6+1', xp: 50, init: -2, save: -2, verb: 'claws at', type: 'undead', fortitude: true },
+    skeleton: { name: 'Skeletal Monk', hp: 13, ac: 13, atk: 4, dmg: '1d6+2', xp: 50, init: 2, save: 2, verb: 'swings a censer at', type: 'undead', reassemble: true, noSleep: true },
+    cultist: { name: 'Ash Cultist', hp: 9, ac: 12, atk: 3, dmg: '1d6+1', xp: 25, init: 1, save: 1, verb: 'stabs at', type: 'humanoid', gold: '1d6', drop: { item: 'fire-flask', chance: 0.25 } },
+    priest: {
+      name: 'The Cinder Priest', hp: 42, ac: 13, atk: 5, dmg: '2d6+1', xp: 450, init: 1, save: 3, verb: 'hurls fire at', type: 'humanoid',
+      burst: { every: 3, name: 'Cinder Burst', dmg: '2d6', dc: 12, ability: 'dex' },
+      summon: { at: 0.5, key: 'cultist', text: 'shrieks for her Choir!' },
+    },
   },
 
   locations: {
@@ -55,11 +76,12 @@ module.exports = {
       desc: 'Thornwick huddles around a stone well in the crook of the Vale. Ash settles on thatched roofs and on fields that should be green by now. Folk hurry between doorways with scarves over their mouths.',
       descIf: [{ when: 'bell-rung', text: 'The ash has stopped falling. Children are chasing each other through the last grey drifts, and someone has started singing in the tavern.' }],
       inn: { name: 'the Sleeping Ember', price: 10 },
-      shop: [{ item: 'potion', price: 25 }],
+      shop: [{ item: 'potion', price: 25 }, { item: 'greater-potion', price: 55 }, { item: 'elixir', price: 45 }, { item: 'fire-flask', price: 20 }],
       actions: [
         { label: 'Speak with Elder Maren', scene: 'elder', when: '!seen:elder' },
         { label: 'Ask Elder Maren for advice', scene: 'elder-again', when: ['seen:elder', '!bell-rung'] },
         { label: 'Read the notice board', scene: 'board' },
+        { label: 'Visit Brann\'s smithy', scene: 'smithy' },
         { label: 'Buy a round and listen for rumors', scene: 'rumors', cost: 2, when: '!seen:rumors' },
         { label: 'Visit Tamsin the miller', scene: 'miller', when: ['q-lina', '!lina-rescued'] },
         { label: 'Bring Lina home to the mill', scene: 'miller-thanks', when: ['lina-rescued', '!lina-home'] },
@@ -150,7 +172,90 @@ module.exports = {
     { a: 'crypt', b: 'abbey', when: 'undercroft-open', hidden: true },
   ],
 
+  // Random things that can happen when you arrive somewhere (if no fight breaks out).
+  // `where` limits them to some places, `once` makes them happen only one time.
+  events: [
+    { scene: 'ev-peddler', where: ['old-road', 'whisperwood', 'greyfen'] },
+    { scene: 'ev-shrine', where: ['old-road', 'hollow', 'whisperwood'], when: '!shrine-used' },
+    { scene: 'ev-pilgrim', where: ['old-road', 'greyfen'], once: true },
+    { scene: 'ev-herbs', where: ['whisperwood', 'hollow'] },
+    { scene: 'ev-cart', where: ['old-road', 'watchtower'], once: true },
+    { scene: 'ev-ashstorm', where: ['old-road', 'greyfen', 'watchtower'], when: '!bell-rung' },
+    { scene: 'ev-odo', where: ['old-road', 'thornwick'], when: ['odo-saved', '!seen:ev-odo'] },
+  ],
+
   scenes: {
+    // ---------------- Shops & travel events ----------------
+    smithy: {
+      title: 'Brann\'s smithy',
+      text: 'Heat rolls out of the open forge. Brann, a broad woman with soot to the elbows, sets down her hammer. "Steel\'s steel, ash or no ash. What do you need?"',
+      choices: [
+        { label: 'Steel longsword (+1 to hit, +1 damage)', cost: 60, give: { 'steel-sword': 1 }, text: '"Mind the edge."', scene: 'smithy' },
+        { label: 'Studded leather (+1 AC)', cost: 45, give: { 'studded-leather': 1 }, text: '"Light enough to run in."', scene: 'smithy' },
+        { label: 'Chain shirt (+2 AC)', cost: 90, give: { 'chain-shirt': 1 }, text: '"Best I\'ve got. Wear it in good health."', scene: 'smithy', when: '!item:chain-shirt' },
+        { label: 'Ask for advice', text: 'Brann taps the counter. "Silver bites the dead. Fire for spiders. And never fight a bandit queen on her own hill."', scene: 'smithy' },
+      ],
+    },
+    'ev-peddler': {
+      title: 'A wandering peddler',
+      text: 'A peddler leads a mule so overloaded it looks like a walking haystack. "Buyers! In this weather! Everything must go."',
+      choices: [
+        { label: 'Healing potion', cost: 20, give: { potion: 1 }, text: '"A bargain!"', scene: 'ev-peddler' },
+        { label: 'Fire flask', cost: 18, give: { 'fire-flask': 1 }, text: '"Don\'t drop it."', scene: 'ev-peddler' },
+        { label: 'Elixir of focus', cost: 40, give: { elixir: 1 }, text: '"Clears the head wonderfully."', scene: 'ev-peddler' },
+        { label: 'Haggle for a deal', check: { skill: 'persuasion', dc: 13 }, success: { text: 'The peddler laughs and throws in a potion for free. "You\'ve robbed me!"', give: { potion: 1 }, set: 'peddler-haggled' }, failure: { text: '"Prices are prices, friend."' }, when: '!peddler-haggled' },
+      ],
+    },
+    'ev-shrine': {
+      title: 'A wayside shrine',
+      text: 'A little stone shrine to Saint Aldric stands by the path, its candle long gone out. Ash has gathered in the offering bowl.',
+      choices: [
+        { label: 'Clean the shrine and pray', check: { skill: 'religion', dc: 11 }, success: { text: 'As the last of the ash is brushed away, warmth washes over the party. Wounds close and tired minds clear.', healParty: 'half', restoreSlots: true, set: 'shrine-used', xp: 50 }, failure: { text: 'You pray, but nothing stirs. Still, it feels good to have cleaned it.', set: 'shrine-used' } },
+        { label: 'Leave a few coins (5 gold)', cost: 5, text: 'The candle flickers alight on its own. You all feel a little steadier.', healParty: '2d4', set: 'shrine-used' },
+      ],
+    },
+    'ev-pilgrim': {
+      title: 'An injured pilgrim',
+      text: 'An old pilgrim sits against a milestone, clutching a badly twisted ankle. "I was walking to the abbey to pray for the bell," she says. "Foolish, perhaps."',
+      choices: [
+        { label: 'Tend to her ankle', check: { skill: 'medicine', dc: 12 }, success: { text: '{name} binds the ankle firmly. She stands and beams. "Take this, I\'ve no more need of it." She presses a vial into your hand.', give: { 'greater-potion': 1 }, xp: 75 }, failure: { text: 'You do your best. She thanks you and limps off toward Thornwick, which is probably wiser anyway.', xp: 25 } },
+        { label: 'Give her a healing potion', when: 'item:potion', take: { potion: 1 }, text: 'She drinks it gratefully and the swelling goes down. "Saint Aldric bless you." For a moment, you feel blessed indeed.', xp: 75, healParty: '1d6' },
+      ],
+    },
+    'ev-herbs': {
+      title: 'Healing herbs',
+      text: 'In a sheltered hollow, a patch of silverleaf grows untouched by the ash. Hedge-witches pay well for it, and it brews into fine medicine.',
+      choices: [
+        { label: 'Gather it carefully', check: { skill: 'survival', dc: 11 }, success: { text: '{name} picks the leaves without bruising them, enough for a fresh healing draught.', give: { potion: 1 } }, failure: { text: 'The leaves crumble in your fingers. Never mind.' } },
+        { label: 'Use what you know of plants', check: { skill: 'nature', dc: 12 }, success: { text: '{name} knows just the trick: a whole bundle, carefully wrapped.', give: { potion: 2 } }, failure: { text: 'You aren\'t sure which leaves are the right ones, and leave them be.' } },
+      ],
+    },
+    'ev-cart': {
+      title: 'An abandoned cart',
+      text: 'A cart sits abandoned by the roadside, its horse long gone. The crates have been pried open, but not very thoroughly.',
+      choices: [
+        { label: 'Search the cart', check: { skill: 'investigation', dc: 11 }, success: { text: '{name} finds a false bottom: coins, and two flasks of alchemist\'s fire.', gold: 25, give: { 'fire-flask': 2 } }, failure: { text: 'While you rummage, two bandits step out of the trees. "That\'s ours, that is."', combat: ['bandit', 'bandit'], win: { text: 'The bandits flee. In their haste they drop a pouch of coins.', gold: 15 } } },
+      ],
+    },
+    'ev-ashstorm': {
+      title: 'Ash storm',
+      text: 'The sky goes dark. A wall of grey ash rolls across the land, hot and choking.',
+      choices: [
+        { label: 'Find shelter', check: { skill: 'survival', dc: 12 }, success: { text: '{name} spots a hollow under a rocky overhang. You wait it out, coughing but safe.' }, failure: { text: 'There\'s no shelter. The ash scours everyone raw.', damageAll: '1d4' } },
+        { label: 'Push on through', check: { ability: 'con', dc: 11, save: true }, success: { text: '{name} leads the way, scarf over mouth, and you all come out the other side.' }, failure: { text: 'You stagger through, half-blind.', damageAll: '1d6' } },
+      ],
+      noLeave: true,
+    },
+    'ev-odo': {
+      title: 'Odo Pell, again',
+      text: '"My rescuers!" Odo Pell waves from a brand-new wagon. "Business is terrible, but I never forget a friend. Special prices, just for you."',
+      choices: [
+        { label: 'Chain shirt (special price)', cost: 55, give: { 'chain-shirt': 1 }, text: '"Practically giving it away!"', scene: 'ev-odo' },
+        { label: 'Greater healing potion', cost: 35, give: { 'greater-potion': 1 }, text: '"Top quality. Mostly."', scene: 'ev-odo' },
+        { label: 'Two healing potions', cost: 30, give: { potion: 2 }, text: '"Two for the price of… slightly less than two."', scene: 'ev-odo' },
+      ],
+    },
+
     // ---------------- Thornwick ----------------
     elder: {
       title: 'Elder Maren',
@@ -245,7 +350,7 @@ module.exports = {
         {
           label: 'Leave them be',
           text: 'Later, Tamsin finds you. "It isn\'t much," she says, pressing two potions and a pouch of coins on you. "But it\'s yours."',
-          give: { potion: 2 }, gold: 20, xp: 150, set: 'lina-home',
+          give: { potion: 2, 'chain-shirt': 1 }, gold: 20, xp: 150, set: 'lina-home',
           quest: { id: 'lina', done: true, text: 'Lina is home safe.' },
         },
       ],
@@ -260,13 +365,13 @@ module.exports = {
         {
           label: 'Lift the wagon off him',
           check: { skill: 'athletics', dc: 12 },
-          success: { text: '{name} heaves, and the wagon lifts just enough for him to wriggle free. "Odo Pell, merchant of fine sundries! Take these, with my undying thanks."', give: { potion: 1 }, gold: 15, xp: 50, set: 'odo-saved' },
+          success: { text: '{name} heaves, and the wagon lifts just enough for him to wriggle free. "Odo Pell, merchant of fine sundries! Take these, with my undying thanks."', give: { potion: 1, 'lucky-coin': 1 }, gold: 15, xp: 50, set: 'odo-saved' },
           failure: { text: 'The wagon shifts, then slams back down. {name} wrenches a shoulder. Odo whimpers.', damage: '1d4', scene: 'wagon' },
         },
         {
           label: 'Lever it up with a fallen branch',
           check: { skill: 'investigation', dc: 10 },
-          success: { text: '{name} wedges a branch under the axle and leans on it. It creaks, and Odo scrambles out. "Brains AND kindness! Here, take these."', give: { potion: 1 }, gold: 15, xp: 50, set: 'odo-saved' },
+          success: { text: '{name} wedges a branch under the axle and leans on it. It creaks, and Odo scrambles out. "Brains AND kindness! Here, take these."', give: { potion: 1, 'lucky-coin': 1 }, gold: 15, xp: 50, set: 'odo-saved' },
           failure: { text: 'The branch snaps with a crack and the wagon lurches. A splinter catches {name}\'s hand.', damage: '1d3', scene: 'wagon' },
         },
         {
@@ -335,7 +440,7 @@ module.exports = {
       title: 'The standing stones',
       text: 'Seven moss-green stones stand in a ring where no ash falls. As you step inside, a voice like wind chimes asks: "I have cities, but no houses. Forests, but no trees. Water, but no fish. What am I?"',
       choices: [
-        { label: '"A map."', text: 'The stones hum with laughter. A silver charm shaped like a crescent moon drops into {name}\'s palm. "Wear it, and harm will find you a little harder."', give: { 'moon-charm': 1 }, xp: 100, set: 'stones-done' },
+        { label: '"A map."', text: 'The stones hum with laughter. A silver charm shaped like a crescent moon drops into {name}\'s palm. "Wear it, and harm will find you a little harder."', give: { 'moon-charm': 1, 'vigor-ring': 1 }, xp: 100, set: 'stones-done' },
         { label: '"A dream."', text: 'The wind turns cold. "No." A gust like a blade slices across {name}\'s cheek, and the stones fall silent for good.', damage: '1d4', set: 'stones-done' },
         { label: '"A painting."', text: 'The wind turns cold. "Close. But no." The stones fall silent for good.', set: 'stones-done' },
         {
@@ -360,7 +465,7 @@ module.exports = {
           quest: { id: 'bell', text: 'Get into the abbey: take Abbot Corwin\'s key from Redcap Vesh at the watchtower, or find the crypt in Greyfen and the lever behind Saint Aldric\'s statue.' },
         },
         { label: '"What is the Ember Wyrm?"', text: '"Old. Older than the Vale. It sleeps in the heart of the hill, and while it sleeps the soil is warm and rich. Wake it fully, and..." She waves at the ash. "That\'s it yawning."', scene: 'hermit' },
-        { label: '"Is there anything you can give us?"', when: '!sable-gift', text: 'She shoves two stoppered bottles at you. "Tastes like regret. Works, though."', give: { potion: 2 }, set: 'sable-gift', scene: 'hermit' },
+        { label: '"Is there anything you can give us?"', when: '!sable-gift', text: 'She shoves two stoppered bottles at you. "Tastes like regret. Works, though."', give: { potion: 2, 'ashwood-staff': 1 }, set: 'sable-gift', scene: 'hermit' },
       ],
     },
 
@@ -384,7 +489,7 @@ module.exports = {
           failure: {
             text: 'Vesh\'s hand clamps around {name}\'s wrist. "Cheeky." She whistles, and her crew draws steel.',
             combat: ['bandit', 'bandit', 'vesh'],
-            win: { text: 'Vesh yields, bleeding. "Take the cursed key! Those Choir freaks up there stopped paying us anyway." The rest of her crew scatters.', give: { 'abbey-key': 1 }, set: 'vesh-done', quest: { id: 'bell', text: 'You have Abbot Corwin\'s key. The road to the abbey is open from the Old Road.' } },
+            win: { text: 'Vesh yields, bleeding. "Take the cursed key! Those Choir freaks up there stopped paying us anyway." The rest of her crew scatters. Her cutlass lies in the dirt.', give: { 'abbey-key': 1, 'redcap-blade': 1 }, set: 'vesh-done', quest: { id: 'bell', text: 'You have Abbot Corwin\'s key. The road to the abbey is open from the Old Road.' } },
           },
         },
         {
@@ -400,13 +505,13 @@ module.exports = {
           failure: {
             text: 'Vesh grins wider. "I like this one. Kill them."',
             combat: ['bandit', 'bandit', 'vesh'],
-            win: { text: 'Vesh yields, bleeding. "Take the cursed key!" Her crew scatters.', give: { 'abbey-key': 1 }, set: 'vesh-done', quest: { id: 'bell', text: 'You have Abbot Corwin\'s key. The road to the abbey is open from the Old Road.' } },
+            win: { text: 'Vesh yields, bleeding. "Take the cursed key!" Her crew scatters, and she leaves her cutlass behind.', give: { 'abbey-key': 1, 'redcap-blade': 1 }, set: 'vesh-done', quest: { id: 'bell', text: 'You have Abbot Corwin\'s key. The road to the abbey is open from the Old Road.' } },
           },
         },
         {
           label: 'Attack!',
           combat: ['bandit', 'bandit', 'vesh'],
-          win: { text: 'Vesh yields, bleeding. "Take the cursed key!" Her crew scatters.', give: { 'abbey-key': 1 }, set: 'vesh-done', quest: { id: 'bell', text: 'You have Abbot Corwin\'s key. The road to the abbey is open from the Old Road.' } },
+          win: { text: 'Vesh yields, bleeding. "Take the cursed key!" Her crew scatters, and she leaves her cutlass behind.', give: { 'abbey-key': 1, 'redcap-blade': 1 }, set: 'vesh-done', quest: { id: 'bell', text: 'You have Abbot Corwin\'s key. The road to the abbey is open from the Old Road.' } },
         },
       ],
     },
@@ -419,7 +524,7 @@ module.exports = {
         {
           label: 'Take it by force',
           combat: ['bandit', 'bandit', 'vesh'],
-          win: { text: 'Vesh yields, bleeding. "Take the cursed key!" Her crew scatters.', give: { 'abbey-key': 1 }, set: 'vesh-done', quest: { id: 'bell', text: 'You have Abbot Corwin\'s key. The road to the abbey is open from the Old Road.' } },
+          win: { text: 'Vesh yields, bleeding. "Take the cursed key!" Her crew scatters, and she leaves her cutlass behind.', give: { 'abbey-key': 1, 'redcap-blade': 1 }, set: 'vesh-done', quest: { id: 'bell', text: 'You have Abbot Corwin\'s key. The road to the abbey is open from the Old Road.' } },
         },
       ],
     },
@@ -432,7 +537,7 @@ module.exports = {
         {
           label: 'Follow them, carefully',
           check: { ability: 'wis', dc: 13, save: true },
-          success: { text: '{name} tests every step and refuses to hurry. The lights grow bored and wink out, leaving behind a drowned shrine and a pouch of old coins.', gold: 40, xp: 50 },
+          success: { text: '{name} tests every step and refuses to hurry. The lights grow bored and wink out, leaving behind a drowned shrine, a pouch of old coins and a silver dagger.', gold: 40, xp: 50, give: { 'silver-dagger': 1 } },
           failure: { text: 'The ground gives way. {name} claws free of the sucking mud, half-drowned, as the lights giggle and fade.', damage: '2d4' },
         },
         { label: 'Ignore them', text: 'Wise. Probably.' },
@@ -458,7 +563,7 @@ module.exports = {
       title: 'The burial halls',
       text: 'Bones rattle. From the open tombs, skeletal monks rise, each one holding a rusted censer like a mace.',
       choices: [
-        { label: 'Fight!', combat: ['skeleton', 'skeleton'], win: { text: 'They collapse into dust. In a monk\'s satchel among the bones, you find a healing potion.', give: { potion: 1 }, set: 'crypt-cleared' } },
+        { label: 'Fight!', combat: ['skeleton', 'skeleton'], win: { text: 'They collapse into dust. In a monk\'s satchel among the bones you find a healing potion, and folded robes stitched with prayers.', give: { potion: 1, 'monk-robes': 1 }, set: 'crypt-cleared' } },
         {
           label: 'Hold up a holy symbol and command them to rest',
           check: { skill: 'religion', dc: 14 },
