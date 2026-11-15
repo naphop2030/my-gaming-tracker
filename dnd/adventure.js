@@ -298,6 +298,20 @@ function logPlace(adv, id) {
   log(adv, 'place', locationDesc(adv, id), { title: L.name, fx: { t: 'travel' } });
 }
 
+// The coach runs between towns with a coach stop that the party has already visited.
+const COACH_PRICE = 8;
+function coachStops(adv) {
+  const A = content(adv);
+  return Object.keys(A.locations).filter((id) => id !== adv.location && A.locations[id].coach && adv.visited[id]);
+}
+
+// Is there something here the party hasn't done yet? (a "!" on the map)
+function hasNews(adv, id) {
+  const L = content(adv).locations[id];
+  if (!adv.visited[id]) return false;
+  return (L.actions || []).some((a) => test(adv, a.when) && !adv.flags[`seen:${a.scene}`]);
+}
+
 function moveTo(room, to, encounters) {
   const adv = room.adventure;
   adv.prev = adv.location;
@@ -494,14 +508,14 @@ function monsterTurn(room, m) {
   }
   if (M.burst && m.turns % M.burst.every === 0) {
     delete m.status.charging;
-    log(adv, 'combat', `${m.name} unleashes ${M.burst.name}!`, { title: 'Combat', fx: { t: 'burst', id: m.id } });
+    log(adv, 'combat', `${m.name} unleashes ${M.burst.name}!`, { title: 'Combat', fx: { t: 'burst', id: m.id, style: M.burst.style || 'fire' } });
     for (const { id, c } of alive(adv)) {
       const roll1 = c.defending ? Math.max(d20(), d20()) : d20(); // braced heroes get advantage
       const save = roll1 + mod(c.abilities[M.burst.ability]) + (CLASSES[c.cls].saves.includes(M.burst.ability) ? prof(c) : 0) + blessBonus(adv);
       let dmg = dice(M.burst.dmg);
       const ok = save >= M.burst.dc;
       if (ok) dmg = Math.floor(dmg / 2);
-      hurtHero(room, id, c, dmg, `${c.name} is caught in the blast${c.defending ? ' (braced)' : ''}: save ${save} vs DC ${M.burst.dc}${ok ? ', half damage' : ''}. {dmg} damage.`, { from: m.id, style: 'fire' });
+      hurtHero(room, id, c, dmg, `${c.name} is caught in the blast${c.defending ? ' (braced)' : ''}: save ${save} vs DC ${M.burst.dc}${ok ? ', half damage' : ''}. {dmg} damage.`, { from: m.id, style: M.burst.style || 'fire' });
     }
     return;
   }
@@ -521,7 +535,7 @@ function monsterTurn(room, m) {
     const ac = acOf(adv, c);
     if (nat === 20 || (nat !== 1 && total >= ac)) {
       const dmg = dice(nat === 20 ? critDice(M.dmg) : M.dmg);
-      hurtHero(room, heroId, c, dmg, `${m.name} ${M.verb || 'attacks'} ${c.name}${pack ? ' (pack tactics)' : ''}: ${total} vs AC ${ac}. Hit for {dmg}${nat === 20 ? ' (critical!)' : ''}.`, { from: m.id, crit: nat === 20 });
+      hurtHero(room, heroId, c, dmg, `${m.name} ${M.verb || 'attacks'} ${c.name}${pack ? ' (pack tactics)' : ''}: ${total} vs AC ${ac}. Hit for {dmg}${nat === 20 ? ' (critical!)' : ''}.`, { from: m.id, crit: nat === 20, style: M.style });
       if (M.poison && c.hp > 0 && chance(M.poison.chance)) {
         c.status.poison = { turns: M.poison.turns, dmg: M.poison.dmg };
         log(adv, 'hurt', `${c.name} is poisoned!`, { fx: { t: 'status', id: heroId, status: 'poison' } });
@@ -532,7 +546,7 @@ function monsterTurn(room, m) {
   }
   if (warnBurst && m.hp > 0) {
     m.status.charging = true;
-    log(adv, 'combat', `${m.name} draws burning ash into her hands… ${M.burst.name} is coming next turn! (Defend to brace for it.)`, { fx: { t: 'warn', id: m.id, text: `${M.burst.name} next turn!` } });
+    log(adv, 'combat', `${m.name} ${M.burst.warn || 'draws burning ash into her hands…'} ${M.burst.name} is coming next turn! (Defend to brace for it.)`, { fx: { t: 'warn', id: m.id, text: `${M.burst.name} next turn!` } });
   }
 }
 
@@ -1038,6 +1052,15 @@ function handle(room, me, isHost, msg) {
         enterScene(adv, msg.id);
         return;
       }
+      if (msg.kind === 'coach') {
+        if (!L.coach) fail('There is no coach stop here.');
+        if (!coachStops(adv).includes(msg.to)) fail('The coach doesn\'t go there (yet).');
+        if (adv.gold < COACH_PRICE) fail(`The coach costs ${COACH_PRICE} gold.`);
+        adv.gold -= COACH_PRICE;
+        log(adv, 'travel', `The party takes the coach to ${A.locations[msg.to].name} (${COACH_PRICE} gold).`);
+        moveTo(room, msg.to, false);
+        return;
+      }
       if (msg.kind === 'inn') {
         if (!L.inn) fail('There is no inn here.');
         if (adv.gold < L.inn.price) fail(`A night at ${L.inn.name} costs ${L.inn.price} gold.`);
@@ -1191,18 +1214,21 @@ function view(room, meId) {
     if (L.inn) actions.push({ kind: 'inn', label: `Rest at ${L.inn.name}`, cost: L.inn.price });
     if (!L.inn) actions.push({ kind: 'camp', label: L.safe ? 'Rest for an hour' : 'Make camp (risky)', cost: 0 });
   }
+  const coach = !adv.combat && !adv.scene && L.coach ? coachStops(adv).map((id) => ({ to: id, name: A.locations[id].name, region: A.locations[id].region })) : [];
   const shop = !adv.combat && !adv.scene ? (L.shop || []).map((s) => ({ ...itemView(A, s.item, 0), price: s.price })) : [];
 
   return {
     id: adv.id, title: A.title, gold: adv.gold,
-    location: { id: adv.location, name: L.name, region: L.region, desc: locationDesc(adv, adv.location), scene: L.scene || adv.location, image: L.image || null, effect: L.effect || null, icon: icon(L.icon || adv.location, 'map'), music: L.music || null },
+    location: { id: adv.location, name: L.name, region: L.region, danger: L.danger || 0, tagline: L.tagline || null, desc: locationDesc(adv, adv.location), scene: L.scene || adv.location, image: L.image || null, effect: L.effect || null, icon: icon(L.icon || adv.location, 'map'), music: L.music || null },
     ambience: ((A.ambience && A.ambience.when) || []).filter((x) => test(adv, x.when)).map((x) => x.value)[0] || (A.ambience && A.ambience.default) || 'clear',
     actions,
     shop,
-    exits: adv.combat ? [] : pathsFrom(adv, adv.location).map((p) => ({ to: p.to, name: A.locations[p.to].name, ok: p.ok, locked: p.ok ? null : p.locked, visited: !!adv.visited[p.to] })),
+    coach, coachPrice: COACH_PRICE,
+    exits: adv.combat ? [] : pathsFrom(adv, adv.location).map((p) => ({ to: p.to, name: A.locations[p.to].name, ok: p.ok, locked: p.ok ? null : p.locked, visited: !!adv.visited[p.to], danger: A.locations[p.to].danger || 0 })),
     scene,
     world: {
-      nodes: [...known].map((id) => ({ id, name: A.locations[id].name, region: A.locations[id].region, icon: icon(A.locations[id].icon || id, 'map'), x: A.locations[id].x, y: A.locations[id].y, visited: !!adv.visited[id], here: id === adv.location })),
+      nodes: [...known].map((id) => ({ id, name: A.locations[id].name, region: A.locations[id].region, icon: icon(A.locations[id].icon || id, 'map'), x: A.locations[id].x, y: A.locations[id].y, visited: !!adv.visited[id], here: id === adv.location, danger: A.locations[id].danger || 0, todo: hasNews(adv, id) })),
+      size: A.map || { w: 100, h: 70 },
       edges: A.paths
         .filter((p) => known.has(p.a) && known.has(p.b) && (test(adv, p.when) || !p.hidden))
         .map((p) => ({ a: p.a, b: p.b, ok: test(adv, p.when) })),

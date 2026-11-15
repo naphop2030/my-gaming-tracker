@@ -254,3 +254,97 @@ test('the boss summons help and uses Cinder Burst', () => {
   assert.ok(room.adventure.log.some((e) => /coming next turn/.test(e.text)), 'burst was telegraphed');
   assert.ok(room.adventure.log.some((e) => /shrieks for her Choir/.test(e.text)), 'summon happened');
 });
+
+test('beyond the Vale: goblins, the Mere Hag, Frostmane and Warlord Grukk', () => {
+  const room = newGame([['p1', 'Brakka', 'fighter'], ['p2', 'Wren', 'wizard']]);
+  for (const c of Object.values(room.adventure.party)) { c.maxHp = 900; c.hp = 900; }
+  const scene = (id) => { act(room, 'p1', { t: 'adv:do', kind: 'scene', id }); };
+  const fightChoice = (label = 'Fight') => { choose(room, 'p1', label); fight(room); };
+  assert.deepStrictEqual(v(room, 'p1').world.size, { w: 150, h: 95 });
+
+  // Goblins in Bramblefields
+  travel(room, 'p1', 'bramble');
+  assert.strictEqual(v(room, 'p1').location.danger, 1);
+  assert.ok(v(room, 'p1').world.nodes.find((n) => n.id === 'bramble').todo, 'Hobb is news');
+  scene('hobb');
+  choose(room, 'p1', 'deal with your goblins');
+  assert.ok(!room.adventure.world && !v(room, 'p1').world.nodes.some((n) => n.id === 'warren'), 'warren still hidden');
+  room.adventure.flags['warren-found'] = true;
+  travel(room, 'p1', 'warren');
+  scene('warren-tunnels');
+  fightChoice('Charge');
+  scene('snik-throne');
+  fightChoice();
+  assert.strictEqual(room.adventure.inventory['goblin-crown'], 1);
+  travel(room, 'p1', 'bramble');
+  scene('hobb-thanks');
+  choose(room, 'p1', 'Accept');
+  assert.ok(room.adventure.journal.find((q) => q.id === 'goblins').done);
+
+  // Over the causeway to Harrowmere
+  travel(room, 'p1', 'saltreed');
+  travel(room, 'p1', 'harrowmere');
+  assert.throws(() => act(room, 'p1', { t: 'adv:travel', to: 'shrine' }), /Reeve/);
+  scene('reeve');
+  choose(room, 'p1', 'first problem');
+  choose(room, 'p1', 'second problem');
+  assert.ok(room.adventure.flags['q-hag'] && room.adventure.flags['q-orcs']);
+
+  // The coach runs between visited coach stops
+  act(room, 'p1', { t: 'adv:choose', index: -1 });
+  const coach = v(room, 'p1').coach;
+  assert.deepStrictEqual(coach.map((c) => c.to), ['thornwick']);
+  room.adventure.gold = 100;
+  act(room, 'p1', { t: 'adv:do', kind: 'coach', to: 'thornwick' });
+  assert.strictEqual(room.adventure.location, 'thornwick');
+  assert.strictEqual(room.adventure.gold, 100 - v(room, 'p1').coachPrice);
+  assert.throws(() => act(room, 'p1', { t: 'adv:do', kind: 'coach', to: 'lodge' }), /doesn't go there/);
+  act(room, 'p1', { t: 'adv:do', kind: 'coach', to: 'harrowmere' });
+
+  // The Mere Hag
+  travel(room, 'p1', 'shrine');
+  scene('nave');
+  fightChoice();
+  scene('hag-lair');
+  choose(room, 'p1', 'Fight');
+  assert.ok(v(room, 'p1').combat.monsters.some((m) => m.name === 'The Mere Hag' && m.boss));
+  fight(room);
+  assert.strictEqual(room.adventure.inventory['tide-amulet'], 1);
+  travel(room, 'p1', 'harrowmere');
+  scene('reeve-again');
+  choose(room, 'p1', 'Mere Hag is dead');
+
+  // Frostmane and the road to Ironjaw
+  travel(room, 'p1', 'frostfang');
+  assert.throws(() => act(room, 'p1', { t: 'adv:travel', to: 'ironjaw' }), /Brakka/);
+  travel(room, 'p1', 'lodge');
+  scene('brakka');
+  choose(room, 'p1', 'way to Ironjaw');
+  choose(room, 'p1', 'rangers need help');
+  travel(room, 'p1', 'frostfang');
+  scene('frostmane-track');
+  choose(room, 'p1', 'Follow the tracks');
+  fight(room);
+  assert.ok(room.adventure.flags['frostmane-done']);
+  travel(room, 'p1', 'lodge');
+  scene('brakka-again');
+  choose(room, 'p1', 'pelt');
+  assert.strictEqual(room.adventure.inventory['frost-cloak'], 1);
+
+  // Warlord Grukk
+  travel(room, 'p1', 'frostfang');
+  travel(room, 'p1', 'ironjaw');
+  assert.strictEqual(v(room, 'p1').location.danger, 4);
+  scene('gatehouse');
+  fightChoice();
+  scene('great-hall');
+  choose(room, 'p1', 'Fight');
+  fight(room);
+  assert.strictEqual(room.adventure.inventory['ironjaw-axe'], 1);
+  travel(room, 'p1', 'frostfang');
+  travel(room, 'p1', 'harrowmere');
+  scene('reeve-again');
+  choose(room, 'p1', 'Grukk is beaten');
+  assert.strictEqual(room.adventure.ended.title, 'Heroes of the Mere');
+  assert.ok(Object.values(room.adventure.party).every((c) => c.level >= 4), 'the new region levels heroes up');
+});

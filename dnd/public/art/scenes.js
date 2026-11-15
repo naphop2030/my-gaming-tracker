@@ -22,8 +22,8 @@
   const f = (n) => Math.round(n * 10) / 10;
 
   const PALETTES = {
-    ash: { top: '#2e2622', bottom: '#9a7356', glow: '#e9a35c', far: '#6e5848', mid: '#4b3c32', near: '#2d231d', front: '#16110e', light: '#ffc46b', fog: '#b59a82', water: '#5d4a3c' },
-    clear: { top: '#203a5c', bottom: '#e8b583', glow: '#ffe0a8', far: '#5f7189', mid: '#3e4c5e', near: '#252f3b', front: '#11161c', light: '#ffd27a', fog: '#c9d3df', water: '#55708c' },
+    ash: { top: '#2e2622', bottom: '#9a7356', glow: '#e9a35c', far: '#6e5848', mid: '#4b3c32', near: '#2d231d', front: '#16110e', light: '#ffc46b', fog: '#b59a82', water: '#5d4a3c', snow: '#cdc5ba' },
+    clear: { top: '#203a5c', bottom: '#e8b583', glow: '#ffe0a8', far: '#5f7189', mid: '#3e4c5e', near: '#252f3b', front: '#11161c', light: '#ffd27a', fog: '#c9d3df', water: '#55708c', snow: '#eef3fa' },
   };
 
   // Each place gets its own color grading on top of the mood: green woods, a teal marsh,
@@ -33,6 +33,12 @@
     'sc-fen': { ash: { far: '#5a6058', mid: '#3c443c', water: '#46504a', bottom: '#8a8a70', glow: '#c8d890', fog: '#a8b098' }, clear: { far: '#58808a', water: '#4d7a88', bottom: '#b8d4c8', fog: '#d0e4e4' } },
     'sc-tower': { ash: { bottom: '#a8604a', glow: '#ff8a50', far: '#6e4c40', mid: '#4b342c' }, clear: { bottom: '#f0a070', glow: '#ffd090' } },
     'sc-hollow': { ash: { bottom: '#a08a60', far: '#6e6448', mid: '#4a4632', near: '#2c2a1e' }, clear: { bottom: '#e8d090', far: '#6a7a60', mid: '#45503e' } },
+    'sc-harrow': { ash: { water: '#4e4e4a', bottom: '#a08870' }, clear: { water: '#4d7090', bottom: '#f0c8a0' } },
+    'sc-shrine': { ash: { water: '#3e4a48', bottom: '#7a8a7a', glow: '#a8d8c0', far: '#4e5a58', mid: '#2e3836', near: '#1e2624' }, clear: { water: '#3e6878', bottom: '#a8d0d0', glow: '#d0fff0' } },
+    'sc-frost': { ash: { top: '#3a3a44', bottom: '#b0a8a4', far: '#8a8e98', mid: '#5e626e', near: '#363944', glow: '#e8d0b0', fog: '#d8dce4' }, clear: { top: '#2a4a7a', bottom: '#e0eaf8', far: '#9aaccc', mid: '#5a6e8c', near: '#2e3a4e', fog: '#e8f0f8' } },
+    'sc-lodge': { ash: { top: '#363440', bottom: '#b8a490', far: '#868a94', mid: '#4e5460', near: '#2e313a' }, clear: { top: '#2a4a7a', bottom: '#f0d8b8', far: '#9aaccc', mid: '#4a5e7c', near: '#28344a' } },
+    'sc-iron': { ash: { top: '#24161a', bottom: '#9a4a30', glow: '#ff7040', far: '#6a4a46', mid: '#4a3430', near: '#2c1e1c', fog: '#a08070' }, clear: { bottom: '#f0a070', glow: '#ffc890', far: '#8090a8', mid: '#4a5468', near: '#2a3040' } },
+    'sc-bramble': { ash: { bottom: '#a8906a', far: '#76704e', mid: '#4e4a32', near: '#33301f' }, clear: { bottom: '#f0d898', far: '#6e8a5a', mid: '#46603a', near: '#2c3e24' } },
     'sc-abbey': { ash: { top: '#1e1418', bottom: '#8a3a2a', glow: '#ff6a3a', far: '#5a3a34', mid: '#3a2622', near: '#24171a' }, clear: { bottom: '#f0c890', glow: '#fff0c0' } },
   };
 
@@ -95,6 +101,29 @@
       const y = y0 + r() * (y1 - y0);
       const h = hMin + r() * (hMax - hMin);
       s += kind === 'pine' ? pine(x, y, h, color) : kind === 'dead' ? deadTree(x, y, h, color, r) : roundTree(x, y, h, color, r);
+    }
+    return s;
+  }
+  // Jagged mountains with snow caps.
+  function peaks(r, base, n, color, snow, height = 200) {
+    let s = '';
+    for (let i = -1; i <= n; i++) {
+      const cx = (i + 0.5) * (W / n) + (r() - 0.5) * 80;
+      const h = height * (0.6 + r() * 0.5);
+      const w = (W / n) * (0.8 + r() * 0.5);
+      const top = base - h;
+      s += `<path d="M${f(cx - w)} ${base + 40} L${f(cx - w * 0.15)} ${f(top + h * 0.12)} L${f(cx)} ${f(top)} L${f(cx + w * 0.2)} ${f(top + h * 0.15)} L${f(cx + w)} ${base + 40} Z" fill="${color}"/>`;
+      s += `<path d="M${f(cx - w * 0.3)} ${f(top + h * 0.32)} L${f(cx - w * 0.15)} ${f(top + h * 0.12)} L${f(cx)} ${f(top)} L${f(cx + w * 0.2)} ${f(top + h * 0.15)} L${f(cx + w * 0.34)} ${f(top + h * 0.3)} L${f(cx + w * 0.12)} ${f(top + h * 0.24)} L${f(cx)} ${f(top + h * 0.34)} L${f(cx - w * 0.14)} ${f(top + h * 0.26)} Z" fill="${snow}" opacity=".9"/>`;
+    }
+    return s;
+  }
+  function snowyForest(r, n, y0, y1, hMin, hMax, color, snow) {
+    let s = '';
+    for (let i = 0; i < n; i++) {
+      const x = r() * (W + 100) - 50;
+      const y = y0 + r() * (y1 - y0);
+      const h = hMin + r() * (hMax - hMin);
+      s += pine(x, y, h, color) + `<path d="M${f(x)} ${f(y - h)} L${f(x + h * 0.14)} ${f(y - h * 0.6)} L${f(x)} ${f(y - h * 0.66)} L${f(x - h * 0.14)} ${f(y - h * 0.6)} Z" fill="${snow}" opacity=".85"/>`;
     }
     return s;
   }
@@ -314,6 +343,175 @@
       s += fog('sc-abbey', 470, p.fog, 0.22, 40);
       return s;
     }),
+
+    // ---------------- beyond the Vale ----------------
+    bramble: (mood) => wrap('sc-bramble', mood, (p) => {
+      const r = rng(101);
+      let s = sky('sc-bramble', 1150, 300);
+      s += ridge(r, 330, 30, 20, p.far, { wave: 320 });
+      s += forest(r, 22, 360, 380, 40, 70, p.far, 'round');
+      s += ridge(r, 400, 20, 12, p.mid, { wave: 260, phase: 1 });
+      // patchwork fields with hedgerows
+      const rows = [[430, p.mid], [470, p.near], [520, p.mid]];
+      for (const [y, c] of rows) s += `<path d="M0 ${H} L0 ${y} Q 400 ${y - 20} 800 ${y - 6} Q 1200 ${y + 8} 1600 ${y - 10} L1600 ${H} Z" fill="${c}" opacity=".95"/>`;
+      for (let i = 0; i < 4; i++) { const y = 425 + i * 38; s += `<path d="M0 ${y} Q 400 ${y - 22} 800 ${y - 8} Q 1200 ${y + 6} 1600 ${y - 12}" stroke="${p.front}" stroke-width="${10 + i * 4}" fill="none" stroke-linecap="round" opacity=".8"/>`; }
+      // farmhouse and haystacks
+      s += house('sc-bramble', 1080, 430, 110, 54, p.near, p.light, r);
+      for (const [x, y, w] of [[860, 445, 46], [930, 452, 38], [300, 470, 52]]) s += `<path d="M${x - w} ${y} Q ${x} ${y - w * 1.3} ${x + w} ${y} Z" fill="${p.near}"/>`;
+      // scarecrow
+      s += `<g fill="${p.front}" stroke="${p.front}"><rect x="496" y="400" width="7" height="140"/><rect x="455" y="425" width="90" height="6"/><circle cx="500" cy="398" r="15"/><path d="M478 390 L522 390 L510 372 L490 372 Z"/><path d="M482 431 L518 431 L524 480 L476 480 Z"/><path d="M455 428 l-8 18 M545 428 l8 18" stroke-width="4"/></g>`;
+      s += `<path d="M0 ${H} L0 548 Q800 515 1600 552 L1600 ${H} Z" fill="${p.front}"/>`;
+      for (let i = 0; i < 14; i++) s += `<rect x="${60 + i * 115}" y="${528 + (i % 3) * 4}" width="6" height="40" fill="${p.front}"/>`;
+      s += `<path d="M0 540 Q 800 512 1600 545" stroke="${p.front}" stroke-width="4" fill="none"/>`;
+      s += fog('sc-bramble', 420, p.fog, 0.15);
+      return s;
+    }),
+
+    warren: (mood) => wrap('sc-warren', mood, (p) => {
+      const r = rng(113);
+      let s = sky('sc-warren', 450, 300, 230);
+      s += ridge(r, 320, 50, 30, p.far, { wave: 240 });
+      s += `<path d="M0 ${H} L0 470 Q 300 430 520 330 Q 800 190 1080 330 Q 1300 430 1600 470 L1600 ${H} Z" fill="${p.mid}"/>`;
+      s += forest(r, 7, 330, 360, 70, 110, p.near, 'round');
+      // burrows
+      const holes = [[800, 400, 70, 52], [600, 380, 30, 22], [1000, 385, 34, 24], [700, 300, 22, 16], [930, 300, 20, 14], [480, 450, 26, 18], [1150, 450, 28, 18]];
+      for (const [x, y, rx, ry] of holes) s += `<ellipse cx="${x}" cy="${y}" rx="${rx}" ry="${ry}" fill="${p.front}"/>`;
+      s += lamp('sc-warren', 800, 410, 90) + `<ellipse cx="800" cy="414" rx="40" ry="26" fill="${p.light}" opacity=".35"/>`;
+      // crude totems with skulls
+      for (const [x, h] of [[640, 130], [960, 150]]) s += `<rect x="${x - 5}" y="${470 - h}" width="10" height="${h}" fill="${p.front}"/><circle cx="${x}" cy="${470 - h}" r="13" fill="#d8cfbd" opacity=".8"/><circle cx="${x - 4}" cy="${468 - h}" r="3" fill="${p.front}"/><circle cx="${x + 4}" cy="${468 - h}" r="3" fill="${p.front}"/><path d="M${x - 22} ${490 - h} L${x + 22} ${480 - h}" stroke="${p.front}" stroke-width="5"/>`;
+      s += `<path d="M0 ${H} L0 540 Q800 500 1600 545 L1600 ${H} Z" fill="${p.front}"/>`;
+      // left boots and turnips in the mud
+      for (let i = 0; i < 9; i++) { const x = 200 + r() * 1200; const y = 545 + r() * 40; s += r() < 0.5 ? `<path d="M${f(x)} ${f(y)} l0 -16 l9 0 l0 10 l12 0 l0 6 Z" fill="${p.near}"/>` : `<circle cx="${f(x)}" cy="${f(y)}" r="7" fill="${p.near}"/><path d="M${f(x)} ${f(y - 6)} l-4 -10 M${f(x)} ${f(y - 6)} l4 -11" stroke="${p.near}" stroke-width="3"/>`; }
+      s += fog('sc-warren', 470, p.fog, 0.18);
+      return s;
+    }),
+
+    saltreed: (mood) => wrap('sc-salt', mood, (p) => {
+      const r = rng(127);
+      let s = sky('sc-salt', 900, 300, 320);
+      s += ridge(r, 350, 14, 10, p.far, { wave: 420 });
+      s += `<rect x="0" y="370" width="${W}" height="${H - 370}" fill="${p.water}"/>`;
+      for (let i = 0; i < 26; i++) { const y = 380 + r() * 200; s += `<rect x="${f(r() * W)}" y="${f(y)}" width="${f(50 + r() * 200)}" height="2" fill="${p.glow}" opacity="${f(0.06 + r() * 0.12)}"/>`; }
+      // reed beds
+      for (let i = 0; i < 40; i++) { const x = r() * W; const y = 380 + r() * 40; s += `<path d="M${f(x)} ${f(y)} l-3 -24 M${f(x)} ${f(y)} l2 -30 M${f(x)} ${f(y)} l6 -20" stroke="${p.mid}" stroke-width="2"/>`; }
+      // the causeway, receding toward the horizon
+      s += `<path d="M180 ${H} L760 380 L840 380 L1420 ${H} Z" fill="${p.near}"/>`;
+      for (let i = 0; i < 12; i++) { const k = i / 12; const y = 380 + Math.pow(k, 1.6) * 220; const hw = 40 + Math.pow(k, 1.6) * 580; s += `<path d="M${f(800 - hw)} ${f(y)} L${f(800 + hw)} ${f(y)}" stroke="${p.front}" stroke-width="${f(1 + k * 3)}" opacity=".6"/>`; }
+      // toll-house far along it
+      s += `<g fill="${p.mid}"><rect x="770" y="350" width="44" height="30"/><path d="M765 352 L792 334 L819 352 Z"/></g>`;
+      // half-sunk boat and herons
+      s += `<path d="M260 470 Q 330 500 430 480 L445 455 Q 340 470 270 448 Z" fill="${p.front}" transform="rotate(-8 350 470)"/><path d="M350 460 L330 330" stroke="${p.front}" stroke-width="6" transform="rotate(-8 350 470)"/>`;
+      for (const [x, y] of [[1220, 450], [1300, 470]]) s += `<g fill="${p.front}" stroke="${p.front}"><path d="M${x} ${y} l-6 40 M${x + 8} ${y} l6 40" stroke-width="2.5"/><ellipse cx="${x + 4}" cy="${y - 8}" rx="22" ry="11"/><path d="M${x + 22} ${y - 14} q 12 -30 4 -44" stroke-width="5" fill="none"/><path d="M${x + 26} ${y - 58} l22 4 l-22 4 Z"/></g>`;
+      s += fog('sc-salt', 400, p.fog, 0.3, 50);
+      for (let i = 0; i < 40; i++) { const x = r() * W; const h = 50 + r() * 100; s += `<path d="M${f(x)} ${H} q ${f((r() - 0.5) * 30)} ${f(-h / 2)} ${f((r() - 0.5) * 40)} ${f(-h)}" stroke="${p.front}" stroke-width="3" fill="none"/>`; }
+      return s;
+    }),
+
+    harrowmere: (mood) => wrap('sc-harrow', mood, (p) => {
+      const r = rng(131);
+      let s = sky('sc-harrow', 1200, 280, 280);
+      s += peaks(r, 330, 9, p.far, p.snow, 120);
+      s += ridge(r, 370, 18, 10, p.mid, { wave: 300 });
+      s += `<rect x="0" y="390" width="${W}" height="${H - 390}" fill="${p.water}"/>`;
+      for (let i = 0; i < 24; i++) { const y = 400 + r() * 190; s += `<rect x="${f(r() * W)}" y="${f(y)}" width="${f(40 + r() * 180)}" height="2" fill="${p.light}" opacity="${f(0.06 + r() * 0.1)}"/>`; }
+      // town on stilts
+      const spots = [[230, 380], [330, 372], [440, 380], [560, 368], [700, 374], [820, 366], [950, 376], [1070, 368], [1190, 378], [1300, 372]];
+      for (const [x, y] of spots) {
+        const w = 70 + r() * 30;
+        for (let k = 0; k < 4; k++) s += `<rect x="${f(x + k * (w / 3) - 2)}" y="${y}" width="4" height="${f(470 - y)}" fill="${p.near}"/>`;
+        s += house('sc-harrow', x, y, w, 36 + r() * 14, p.near, p.light, r);
+      }
+      s += `<path d="M200 ${386} L1400 ${386}" stroke="${p.near}" stroke-width="7"/>`;
+      for (let i = 0; i < 8; i++) s += `<path d="M${250 + i * 140} 384 q 30 14 60 0" stroke="${p.near}" stroke-width="2" fill="none"/>`;
+      // reflections
+      s += `<rect x="200" y="470" width="1200" height="40" fill="${p.light}" opacity=".05"/>`;
+      // boats
+      for (const [x, y, sc] of [[520, 500, 1], [1000, 520, 1.2], [1350, 495, 0.8]]) s += `<g transform="translate(${x} ${y}) scale(${sc})" fill="${p.front}"><path d="M-50 0 Q 0 22 50 0 Z"/><rect x="-2" y="-70" width="4" height="70"/><path d="M2 -66 L36 -12 L2 -12 Z" opacity=".85"/></g>`;
+      s += `<path d="M0 ${H} L0 560 L1600 560 L1600 ${H} Z" fill="${p.front}"/>`;
+      for (let i = 0; i < 16; i++) s += `<rect x="${40 + i * 100}" y="535" width="10" height="40" fill="${p.front}"/>`;
+      s += fog('sc-harrow', 400, p.fog, 0.18, 40);
+      return s;
+    }),
+
+    shrine: (mood) => wrap('sc-shrine', mood, (p) => {
+      const r = rng(137);
+      let s = sky('sc-shrine', 620, 270, 300);
+      s += ridge(r, 350, 12, 8, p.far, { wave: 400 });
+      s += `<rect x="0" y="365" width="${W}" height="${H - 365}" fill="${p.water}"/>`;
+      for (let i = 0; i < 22; i++) { const y = 375 + r() * 200; s += `<rect x="${f(r() * W)}" y="${f(y)}" width="${f(40 + r() * 160)}" height="2" fill="${p.glow}" opacity="${f(0.06 + r() * 0.1)}"/>`; }
+      // rock spit
+      s += `<path d="M420 460 Q 600 400 820 405 Q 1040 410 1220 470 Z" fill="${p.near}"/>`;
+      // sinking temple
+      s += `<g fill="${p.mid}" transform="rotate(4 820 420)">
+        <rect x="620" y="400" width="400" height="18"/><rect x="600" y="416" width="440" height="14"/>
+        <path d="M630 260 L820 205 L1010 260 Z"/><rect x="630" y="258" width="380" height="16"/>
+      </g>`;
+      for (let i = 0; i < 6; i++) { const x = 650 + i * 66; const broken = i === 1 || i === 4; s += `<rect x="${x}" y="${broken ? 320 : 272}" width="26" height="${broken ? 82 : 130}" fill="${p.mid}" transform="rotate(4 820 420)"/>`; }
+      s += `<circle cx="820" cy="350" r="90" fill="url(#sc-shrine-glow)" opacity=".5"/>` + lamp('sc-shrine', 820, 360, 70);
+      // ripples around the steps
+      for (let i = 0; i < 4; i++) s += `<ellipse cx="820" cy="${440 + i * 18}" rx="${260 + i * 80}" ry="${8 + i * 3}" fill="none" stroke="${p.light}" stroke-width="1.5" opacity="${f(0.18 - i * 0.04)}"/>`;
+      s += fog('sc-shrine', 380, p.fog, 0.3, 45);
+      s += `<path d="M0 ${H} L0 548 Q800 530 1600 550 L1600 ${H} Z" fill="${p.front}"/>`;
+      for (let i = 0; i < 6; i++) { const x = r() * W; s += `<path d="M${f(x - 40)} ${H} Q ${f(x)} ${f(520 - r() * 30)} ${f(x + 50)} ${H} Z" fill="${p.front}"/>`; }
+      return s;
+    }),
+
+    frostfang: (mood) => wrap('sc-frost', mood, (p) => {
+      const r = rng(149);
+      let s = sky('sc-frost', 700, 200, 260);
+      s += peaks(r, 330, 7, p.far, p.snow, 220);
+      s += fog('sc-frost', 300, p.fog, 0.35, 70);
+      s += peaks(r, 430, 6, p.mid, p.snow, 200);
+      s += snowyForest(r, 26, 430, 470, 60, 110, p.near, p.snow);
+      // the ledge path along a cliff
+      s += `<path d="M0 ${H} L0 470 L560 420 L1100 470 L1600 430 L1600 ${H} Z" fill="${p.near}"/>`;
+      s += `<path d="M0 480 L560 428 L1100 478 L1600 438 L1600 456 L1100 496 L560 446 L0 498 Z" fill="${p.snow}" opacity=".7"/>`;
+      s += `<path d="M0 ${H} L0 530 Q 800 500 1600 535 L1600 ${H} Z" fill="${p.front}"/>`;
+      s += `<path d="M0 530 Q 800 500 1600 535 L1600 545 Q 800 512 0 542 Z" fill="${p.snow}" opacity=".55"/>`;
+      // giant wolf tracks in the snow
+      for (let i = 0; i < 6; i++) { const x = 300 + i * 190; const y = 560 + (i % 2) * 14; s += `<ellipse cx="${x}" cy="${y}" rx="14" ry="7" fill="${p.near}" opacity=".6"/>` + [-12, -4, 4, 12].map((dx) => `<circle cx="${x + dx}" cy="${y - 11}" r="3" fill="${p.near}" opacity=".6"/>`).join(''); }
+      return s;
+    }),
+
+    lodge: (mood) => wrap('sc-lodge', mood, (p) => {
+      const r = rng(151);
+      let s = sky('sc-lodge', 1150, 230, 260);
+      s += peaks(r, 340, 8, p.far, p.snow, 200);
+      s += snowyForest(r, 30, 400, 440, 80, 140, p.mid, p.snow);
+      s += `<path d="M0 ${H} L0 460 Q 800 420 1600 460 L1600 ${H} Z" fill="${p.near}"/>`;
+      // the long hall
+      s += `<g fill="${p.front}"><rect x="460" y="350" width="680" height="110"/><path d="M430 356 L800 250 L1170 356 Z"/><rect x="1020" y="250" width="34" height="80"/></g>`;
+      s += `<path d="M440 352 L800 254 L1160 352 L1140 352 L800 266 L460 352 Z" fill="${p.snow}" opacity=".85"/>`;
+      // antlers over the door
+      s += `<g stroke="${p.near}" stroke-width="5" fill="none" stroke-linecap="round"><path d="M800 340 q -30 -20 -50 -50 M770 318 l -18 -4 M800 340 q 30 -20 50 -50 M830 318 l 18 -4"/></g>`;
+      s += `<rect x="772" y="380" width="56" height="80" fill="${p.light}" opacity=".7"/>` + lamp('sc-lodge', 800, 410, 80);
+      for (const x of [540, 640, 940, 1040]) s += lamp('sc-lodge', x + 12, 395, 34) + `<rect x="${x}" y="382" width="24" height="26" fill="${p.light}"/>`;
+      // woodpile
+      for (let i = 0; i < 12; i++) s += `<circle cx="${1200 + (i % 4) * 22}" cy="${452 - Math.floor(i / 4) * 20}" r="10" fill="${p.near}" stroke="${p.front}" stroke-width="3"/>`;
+      s += `<path d="M0 ${H} L0 540 Q 800 505 1600 540 L1600 ${H} Z" fill="${p.snow}" opacity=".35"/>`;
+      s += `<path d="M0 ${H} L0 560 Q 800 530 1600 562 L1600 ${H} Z" fill="${p.front}"/>`;
+      return s;
+    }),
+
+    ironjaw: (mood) => wrap('sc-iron', mood, (p) => {
+      const r = rng(163);
+      let s = sky('sc-iron', 1250, 250, 280);
+      s += peaks(r, 320, 6, p.far, p.snow, 200);
+      // the mountain face with a carved dwarven gate
+      s += `<path d="M300 ${H} L420 160 L620 80 L980 70 L1180 150 L1300 ${H} Z" fill="${p.mid}"/>`;
+      s += `<path d="M560 ${H} L560 260 L800 170 L1040 260 L1040 ${H} Z" fill="${p.near}"/>`;
+      s += `<path d="M640 ${H} L640 300 L800 230 L960 300 L960 ${H} Z" fill="${p.front}"/>`;
+      for (let i = 0; i < 5; i++) s += `<path d="M${600 + i * 10} ${270 + i * 6} L800 ${190 + i * 10} L${1000 - i * 10} ${270 + i * 6}" stroke="${p.mid}" stroke-width="3" fill="none" opacity=".7"/>`;
+      // battlements with fires
+      for (let i = 0; i < 9; i++) s += `<rect x="${480 + i * 75}" y="140" width="40" height="30" fill="${p.near}"/>`;
+      for (const x of [520, 800, 1080]) s += lamp('sc-iron', x, 130, 60) + `<path d="M${x - 14} 142 q 6 -30 14 -40 q 2 18 10 22 q 4 -10 0 -18 q 14 16 4 36 Z" fill="${p.light}"/>`;
+      // orc banners and bones
+      for (const x of [600, 1000]) s += `<path d="M${x} 180 L${x} 420" stroke="${p.front}" stroke-width="5"/><path d="M${x} 186 L${x + 50} 190 L${x + 44} 300 L${x + 25} 280 L${x + 6} 304 Z" fill="#8a2420"/>`;
+      s += `<path d="M0 ${H} L0 520 Q 800 480 1600 525 L1600 ${H} Z" fill="${p.front}"/>`;
+      for (let i = 0; i < 10; i++) { const x = 150 + i * 140 + r() * 40; s += `<path d="M${f(x)} 560 L${f(x + 8)} ${f(500 - r() * 30)} L${f(x + 16)} 560 Z" fill="${p.near}"/>`; }
+      s += fog('sc-iron', 520, p.fog, 0.2);
+      return s;
+    }),
   };
 
   // Generic hills for places without their own picture.
@@ -336,6 +534,14 @@
     greyfen: { clouds: 2, wisps: [[720, 330], [860, 300], [1010, 345], [420, 360], [1240, 320]], shimmer: 18, fireflies: 6 },
     crypt: { flicker: [[300, 451, 46], [460, 451, 46], [1150, 451, 46], [1310, 451, 46], [760, 411, 46], [840, 411, 46]], motes: 26, drips: [[260, 0], [700, 0], [1120, 0], [1460, 0]], shimmer: 6, shimmerY: 545 },
     abbey: { clouds: 3, crows: true, pulse: [800, 215, 90], embers: [800, 180], flicker: true },
+    bramble: { clouds: 3, birds: 2, smoke: 'chimneys', flicker: true, fireflies: 8, leaves: 4 },
+    warren: { clouds: 2, flicker: true, smoke: [[800, 380]], fireflies: 6, motes: 10 },
+    saltreed: { clouds: 3, birds: 3, shimmer: 22, shimmerY: 380, dust: 6 },
+    harrowmere: { clouds: 3, birds: 3, smoke: 'chimneys', flicker: true, shimmer: 20, shimmerY: 400 },
+    shrine: { clouds: 2, flicker: true, wisps: [[700, 320], [960, 300], [1180, 340]], shimmer: 14, shimmerY: 380, motes: 10 },
+    frostfang: { clouds: 4, snow: 60, crows: false, birds: 1 },
+    lodge: { clouds: 2, snow: 40, smoke: [[1037, 245]], flicker: true },
+    ironjaw: { clouds: 2, crows: true, flicker: true, embers: [800, 140], smoke: [[520, 110], [1080, 110]], snow: 25 },
     default: { clouds: 3, birds: 2 },
   };
 
@@ -393,6 +599,7 @@
     for (let k = 0; k < (cfg.motes || 0); k++) s += `<circle class="lf-mote" style="${st({ 'animation-duration': 14 + r() * 14, 'animation-delay': -r() * 28 })}" cx="${f(r() * W)}" cy="${f(100 + r() * 420)}" r="${f(1.2 + r() * 1.6)}" fill="${p.light}" opacity=".5"/>`;
     for (let k = 0; k < (cfg.dust || 0); k++) s += `<circle class="lf-dust" style="${st({ 'animation-duration': 6 + r() * 6, 'animation-delay': -r() * 12 })}" cx="-20" cy="${f(420 + r() * 170)}" r="${f(2 + r() * 3)}" fill="${p.fog}" opacity=".35"/>`;
     for (let k = 0; k < (cfg.shimmer || 0); k++) s += `<rect class="lf-shimmer" style="${st({ 'animation-duration': 3 + r() * 4, 'animation-delay': -r() * 6 })}" x="${f(r() * W)}" y="${f((cfg.shimmerY || 395) + r() * (cfg.shimmerY ? 45 : 180))}" width="${f(40 + r() * 140)}" height="2" fill="${p.light}"/>`;
+    for (let k = 0; k < (cfg.snow || 0); k++) s += `<circle class="lf-snow" style="${st({ 'animation-duration': 6 + r() * 6, 'animation-delay': -r() * 12, '--dx': (r() - 0.5) * 160 + 'px' })}" cx="${f(r() * W)}" cy="-10" r="${f(1.5 + r() * 2.5)}" fill="#f4f8ff" opacity=".85"/>`;
     for (const [x] of cfg.drips || []) s += `<circle class="lf-drip" style="${st({ 'animation-duration': 2.5 + r() * 3, 'animation-delay': -r() * 4 })}" cx="${x}" cy="8" r="2.5" fill="#9ab4bc"/>`;
     return `<svg class="scene-life" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs>
       <radialGradient id="lf-cloud"><stop offset="0" stop-color="${p.fog}" stop-opacity=".22"/><stop offset="1" stop-color="${p.fog}" stop-opacity="0"/></radialGradient>

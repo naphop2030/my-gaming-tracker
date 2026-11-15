@@ -2,7 +2,9 @@
 // "The Ashen Vale": a small open-world adventure for 1-5 level 1 heroes.
 //
 // How adventure files work (so you can write your own):
-// - locations: places on the world map. x/y are positions on a 100 x 70 map.
+// - map: { w, h } is the size of the world map; locations' x/y are positions on it.
+// - locations: places on the world map. `danger` (0-4) is shown on the arrival card and in the
+//   travel menu, `tagline` is the line under the name on the arrival card, `coach: true` makes it a coach stop.
 //   `actions` are things to do there; each opens a scene. `encounters` are random fights on arrival.
 // - paths: which locations connect. `when` locks a path until a condition is true;
 //   `hidden: true` keeps it off the map entirely until then.
@@ -26,6 +28,7 @@ module.exports = {
   title: 'The Ashen Vale',
   blurb: 'Ash is falling on the village of Thornwick and the crops are dying. The great bell at the abbey has gone silent. Find out why, and find your own way in.',
   start: 'thornwick',
+  map: { w: 150, h: 95 },
   startGold: 15,
   startItems: { potion: 1 },
   intro: 'For two hundred years the Cinder Bell of Saint Aldric\'s Abbey has rung at every dusk. Three weeks ago it fell silent. Since then, grey ash has drifted down over the Vale like slow snow, and the fields of Thornwick have begun to wither.\n\nYou arrive in Thornwick at midday, with lanterns burning against the gloom.',
@@ -51,6 +54,15 @@ module.exports = {
     'moon-charm': { name: 'Moon charm', desc: 'A silver crescent from the fey stones. +1 AC for the whole party while you carry it.', acBonus: 1 },
     'abbey-key': { name: 'Abbot Corwin\'s key', desc: 'A heavy iron key stamped with a bell. It opens the abbey gates.' },
     'choir-note': { name: 'Cultist\'s note', desc: '"The Cinder Priest awaits in the tower. Let no one touch the bell."' },
+    // the lands beyond the Vale
+    'goblin-crown': { name: 'Snik\'s tin crown', slot: 'trinket', check: 2, desc: '+2 to every skill check. Dented, too small, and somehow very lucky.', icon: 'gold' },
+    'tide-amulet': { name: 'Tidecaller amulet', slot: 'trinket', ac: 1, hp: 4, desc: '+1 AC and +4 max HP. Cold to the touch, it hums like the lake.', icon: 'defend' },
+    'frost-cloak': { name: 'Frostmane cloak', slot: 'armor', ac: 2, hp: 6, desc: '+2 AC and +6 max HP. The white wolf\'s pelt, warm as a hearth.', icon: 'defend' },
+    'ironjaw-axe': { name: 'Grukk\'s greataxe', slot: 'weapon', atk: 1, dmg: 3, desc: '+1 to hit, +3 damage. Notched from a hundred raids.', icon: 'attack' },
+    'runed-blade': { name: 'Runed blade', slot: 'weapon', atk: 2, dmg: 2, desc: '+2 to hit, +2 damage. Harrowmere dwarf-work.', icon: 'attack' },
+    'mithril-shirt': { name: 'Mithril shirt', slot: 'armor', ac: 3, desc: '+3 AC. Light as linen, hard as a mountain.', icon: 'defend' },
+    'focus-orb': { name: 'Moonstone orb', slot: 'weapon', spell: 2, desc: '+2 to spell attacks and spell save DCs.', classes: ['wizard', 'cleric'], icon: 'magic-missile' },
+    'ranger-map': { name: 'Ranger\'s map', desc: 'Hand-drawn trails through Frostfang Pass, with a skull marked high on the cliffs: Ironjaw Hold.' },
   },
 
   // Monster extras: gold (dice), drop { item, chance }, pack (bonus to hit with friends), poison { chance, dmg, turns },
@@ -68,12 +80,36 @@ module.exports = {
       burst: { every: 3, name: 'Cinder Burst', dmg: '2d6', dc: 12, ability: 'dex' },
       summon: { at: 0.5, key: 'cultist', text: 'shrieks for her Choir!' },
     },
+    // beyond the Vale
+    goblin: { name: 'Goblin', hp: 8, ac: 13, atk: 4, dmg: '1d6+2', xp: 25, init: 2, save: 1, verb: 'jabs at', type: 'humanoid', gold: '1d4', pack: true, drop: { item: 'potion', chance: 0.1 } },
+    snik: {
+      name: 'Snik the Goblin King', hp: 30, ac: 14, atk: 5, dmg: '1d8+2', attacks: 2, xp: 250, init: 3, save: 2, verb: 'whacks', type: 'humanoid', gold: '3d6',
+      summon: { at: 0.5, key: 'goblin', text: 'blows a squeaky horn!' },
+    },
+    drowned: { name: 'Drowned Sailor', hp: 18, ac: 11, atk: 4, dmg: '1d8+2', xp: 75, init: 0, save: 1, verb: 'grabs at', type: 'undead', fortitude: true },
+    hag: {
+      name: 'The Mere Hag', hp: 55, ac: 13, atk: 6, dmg: '2d6+2', xp: 500, init: 2, save: 4, verb: 'rakes', type: 'fey', gold: '5d6',
+      burst: { every: 3, name: 'Drowning Wail', dmg: '2d8', dc: 13, ability: 'wis', style: 'arcane', warn: 'draws a long, rattling breath…' },
+      summon: { at: 0.5, key: 'drowned', text: 'calls up the drowned!' },
+    },
+    direwolf: { name: 'Dire Wolf', hp: 24, ac: 14, atk: 5, dmg: '2d6+2', xp: 100, init: 2, save: 3, verb: 'savages', type: 'beast', pack: true },
+    frostmane: {
+      name: 'Frostmane', hp: 45, ac: 14, atk: 6, dmg: '2d6+3', xp: 350, init: 3, save: 4, verb: 'mauls', type: 'beast', pack: true,
+      summon: { at: 0.5, key: 'direwolf', text: 'howls for its pack!' },
+    },
+    orc: { name: 'Ironjaw Orc', hp: 22, ac: 13, atk: 5, dmg: '1d12+3', xp: 100, init: 1, save: 3, verb: 'hacks at', type: 'humanoid', gold: '2d6', drop: { item: 'greater-potion', chance: 0.15 } },
+    shaman: { name: 'Orc Shaman', hp: 16, ac: 12, atk: 5, dmg: '2d6+1', xp: 100, init: 1, save: 3, verb: 'hurls a firebolt at', type: 'humanoid', style: 'fire', gold: '2d6', drop: { item: 'elixir', chance: 0.3 } },
+    grukk: {
+      name: 'Warlord Grukk', hp: 64, ac: 15, atk: 6, dmg: '2d8+3', xp: 800, init: 1, save: 5, verb: 'cleaves at', type: 'humanoid', gold: '8d6',
+      burst: { every: 3, name: 'Earthshaker', dmg: '2d8', dc: 14, ability: 'dex', style: 'slam', warn: 'raises his greataxe high over his head…' },
+      summon: { at: 0.5, key: 'orc', text: 'bellows for his warband!' },
+    },
   },
 
   locations: {
     thornwick: {
-      name: 'Thornwick', region: 'Village', x: 50, y: 60, effect: 'smoke', safe: true,
-      desc: 'Thornwick huddles around a stone well in the crook of the Vale. Ash settles on thatched roofs and on fields that should be green by now. Folk hurry between doorways with scarves over their mouths.',
+      name: 'Thornwick', region: 'Village', x: 50, y: 60, effect: 'smoke', safe: true, danger: 0, coach: true, tagline: 'A village under falling ash',
+      desc: 'Thornwick huddles around a stone well in the crook of the Vale. Ash settles on thatched roofs and on fields that should be green by now. Folk hurry between doorways with scarves over their mouths. A coach stands by the well, its driver asleep on the box.',
       descIf: [{ when: 'bell-rung', text: 'The ash has stopped falling. Children are chasing each other through the last grey drifts, and someone has started singing in the tavern.' }],
       inn: { name: 'the Sleeping Ember', price: 10 },
       shop: [{ item: 'potion', price: 25 }, { item: 'greater-potion', price: 55 }, { item: 'elixir', price: 45 }, { item: 'fire-flask', price: 20 }],
@@ -90,7 +126,7 @@ module.exports = {
     },
 
     'old-road': {
-      name: 'The Old Road', region: 'Crossroads', x: 50, y: 40, effect: 'fog',
+      name: 'The Old Road', region: 'Crossroads', x: 50, y: 40, effect: 'fog', danger: 1, tagline: 'Where four roads meet',
       desc: 'A rutted road of old imperial stone runs north through dead heather. Four ways meet at a leaning waystone: west into Whisperwood, east toward the reek of Greyfen, north-west to a broken watchtower, and north, up long switchbacks, to the abbey.',
       encounters: [
         { when: '!wolves-cleared', chance: 0.45, groups: [['wolf', 'wolf'], ['wolf']] },
@@ -103,7 +139,7 @@ module.exports = {
     },
 
     whisperwood: {
-      name: 'Whisperwood', region: 'Forest', x: 25, y: 42, effect: 'fireflies',
+      name: 'Whisperwood', region: 'Forest', x: 25, y: 42, effect: 'fireflies', danger: 1, tagline: 'Something clicks in the dark',
       desc: 'Old trees lean together overhead, their leaves curled and grey. Strands of web glint between the trunks. Somewhere deeper in, something clicks. It sounds like a lot of somethings.',
       encounters: [{ chance: 0.3, groups: [['spider'], ['wolf', 'wolf']] }],
       actions: [
@@ -113,7 +149,7 @@ module.exports = {
     },
 
     hollow: {
-      name: 'Hermit\'s Hollow', region: 'Hills', x: 9, y: 24, effect: 'smoke', safe: true,
+      name: 'Hermit\'s Hollow', region: 'Hills', x: 9, y: 24, effect: 'smoke', safe: true, danger: 0, tagline: 'Mind the goat',
       desc: 'A crooked cottage sits in a fold of the hills, smoke curling from a chimney shaped like a teapot. Herbs hang drying from every eave. A goat regards you with deep suspicion.',
       actions: [
         { label: 'Knock on the door', scene: 'hermit', when: '!seen:hermit' },
@@ -122,7 +158,7 @@ module.exports = {
     },
 
     watchtower: {
-      name: 'Redcap Watchtower', region: 'Ruins', x: 29, y: 16, effect: 'embers',
+      name: 'Redcap Watchtower', region: 'Ruins', x: 29, y: 16, effect: 'embers', danger: 2, tagline: 'Red rags on a broken tower',
       desc: 'A broken tower of grey stone leans over the hill road. Red rags flutter from its top, the mark of Redcap Vesh\'s crew. Smoke rises from a cookfire in the courtyard.',
       descIf: [{ when: 'vesh-done', text: 'The bandits keep their distance now, and watch you with wary respect.' }],
       actions: [
@@ -131,8 +167,8 @@ module.exports = {
     },
 
     greyfen: {
-      name: 'Greyfen Marsh', region: 'Marsh', x: 76, y: 46, effect: 'wisps',
-      desc: 'The road dissolves into black water and reeds. Pale lights drift over the marsh, always a little further away. The air smells of rot and old smoke.',
+      name: 'Greyfen Marsh', region: 'Marsh', x: 76, y: 46, effect: 'wisps', danger: 2, tagline: 'Never follow the lights',
+      desc: 'The road dissolves into black water and reeds. Pale lights drift over the marsh, always a little further away. The air smells of rot and old smoke. To the south-east, a raised causeway of old stones runs off toward a distant lake.',
       encounters: [{ chance: 0.4, groups: [['zombie'], ['zombie', 'zombie']] }],
       actions: [
         { label: 'Follow the drifting lights', scene: 'wisps', when: '!seen:wisps' },
@@ -141,7 +177,7 @@ module.exports = {
     },
 
     crypt: {
-      name: 'The Sunken Crypt', region: 'Underground', x: 84, y: 21, effect: 'drips',
+      name: 'The Sunken Crypt', region: 'Underground', x: 84, y: 21, effect: 'drips', danger: 2, tagline: 'The dead do not rest here',
       desc: 'Water drips through the vaulted ceiling. Stone monks lie on top of their tombs with their hands folded. Some of the tombs are open, and empty.',
       actions: [
         { label: 'Explore the burial halls', scene: 'crypt-hall', when: '!crypt-cleared' },
@@ -150,12 +186,95 @@ module.exports = {
     },
 
     abbey: {
-      name: 'Saint Aldric\'s Abbey', region: 'Abbey', x: 55, y: 8, effect: 'embers',
+      name: 'Saint Aldric\'s Abbey', region: 'Abbey', x: 55, y: 8, effect: 'embers', danger: 3, tagline: 'The bell is silent',
       desc: 'The abbey courtyard lies knee-deep in ash. Above it looms the bell tower, its great bronze bell hanging silent. Somewhere inside, voices chant in a language that crackles like fire.',
       descIf: [{ when: 'bell-rung', text: 'Clean wind blows through the courtyard now. The Cinder Bell hums faintly, even at rest.' }],
       actions: [
         { label: 'Cross the courtyard', scene: 'courtyard', when: '!courtyard-clear' },
         { label: 'Climb the bell tower', scene: 'tower', when: ['courtyard-clear', '!bell-rung'] },
+      ],
+    },
+
+    // ---------------- Beyond the Vale ----------------
+    bramble: {
+      name: 'Bramblefields', region: 'Farmland', x: 40, y: 80, effect: 'fireflies', danger: 1, tagline: 'Thornwick\'s fields, gone wild',
+      desc: 'South of Thornwick the fields run wild: hedges taller than a man, sunken lanes, scarecrows leaning at drunken angles. Someone has been pulling up the turnips. Small muddy footprints lead everywhere. A long road runs east toward the lakes.',
+      encounters: [{ when: '!snik-done', chance: 0.4, groups: [['goblin', 'goblin'], ['goblin', 'goblin', 'goblin']] }, { chance: 0.1, groups: [['wolf', 'wolf']] }],
+      actions: [
+        { label: 'Talk to farmer Hobb', scene: 'hobb', when: '!seen:hobb' },
+        { label: 'Follow the muddy footprints', scene: 'footprints', when: ['q-goblins', '!warren-found'] },
+        { label: 'Tell Hobb the goblins are gone', scene: 'hobb-thanks', when: ['snik-done', '!goblins-paid'] },
+      ],
+    },
+    warren: {
+      name: 'The Goblin Warren', region: 'Caves', x: 14, y: 86, effect: 'drips', danger: 2, tagline: 'Mind your head',
+      desc: 'A hill riddled with burrows like a rotten cheese. Turnip tops, stolen washing and a surprising number of left boots litter the mud outside. From deep inside comes squabbling, and a squeaky horn.',
+      descIf: [{ when: 'snik-done', text: 'The warren is quiet now, apart from the occasional goblin sulking in a tunnel mouth.' }],
+      encounters: [{ when: '!snik-done', chance: 0.35, groups: [['goblin', 'goblin', 'goblin']] }],
+      actions: [
+        { label: 'Crawl into the tunnels', scene: 'warren-tunnels', when: '!warren-deep' },
+        { label: 'Enter the throne cave', scene: 'snik-throne', when: ['warren-deep', '!snik-done'] },
+      ],
+    },
+    saltreed: {
+      name: 'Saltreed Causeway', region: 'Lakeshore', x: 98, y: 58, effect: 'fog', danger: 2, tagline: 'The old road over the water',
+      desc: 'An ancient causeway of fitted stone strides across miles of reed and brackish water. Herons stand like statues. Half-sunk boats rot in the shallows, and once in a while something pale moves beneath the surface.',
+      encounters: [{ chance: 0.35, groups: [['drowned'], ['bandit', 'bandit', 'bandit'], ['drowned', 'drowned']] }],
+      actions: [
+        { label: 'Search the half-sunk barge', scene: 'barge', when: '!seen:barge' },
+        { label: 'Visit the toll-house shrine', scene: 'tollhouse', when: '!seen:tollhouse' },
+      ],
+    },
+    harrowmere: {
+      name: 'Harrowmere', region: 'Lake Town', x: 120, y: 70, effect: 'smoke', safe: true, danger: 0, coach: true, tagline: 'A town on stilts above the Mere',
+      desc: 'Harrowmere is built on stilts out over a vast grey lake, its houses joined by rope bridges and boardwalks. Fishing boats bob below, nets drying in the wind. It is bigger than Thornwick, and louder, and it smells of smoked eel.',
+      descIf: [{ when: 'hag-done', text: 'Boats are out on the Mere again. Somebody has hung paper lanterns along the boardwalks in your honour.' }],
+      inn: { name: 'the Jolly Eel', price: 15 },
+      shop: [{ item: 'potion', price: 25 }, { item: 'greater-potion', price: 50 }, { item: 'elixir', price: 40 }, { item: 'fire-flask', price: 18 }],
+      actions: [
+        { label: 'Meet Reeve Odalys at the town hall', scene: 'reeve', when: '!seen:reeve' },
+        { label: 'Visit Reeve Odalys', scene: 'reeve-again', when: 'seen:reeve' },
+        { label: 'Visit Dunmar\'s forge', scene: 'dunmar' },
+        { label: 'Drink with the fishers at the Jolly Eel', scene: 'fishers', cost: 3, when: '!seen:fishers' },
+      ],
+    },
+    shrine: {
+      name: 'The Drowned Shrine', region: 'Lake', x: 138, y: 86, effect: 'wisps', danger: 3, tagline: 'Bells ring under the water',
+      desc: 'Out on a spit of black rock, a temple to some forgotten lake-god is sinking slowly into the Mere. Water laps at its steps and pours through its broken roof. Somewhere below, a bell tolls, muffled, though no bell hangs above.',
+      descIf: [{ when: 'hag-done', text: 'The water around the shrine has gone still and clear. You can see the old mosaics on the flooded floor.' }],
+      encounters: [{ when: '!hag-done', chance: 0.4, groups: [['drowned', 'drowned'], ['drowned']] }],
+      actions: [
+        { label: 'Wade into the flooded nave', scene: 'nave', when: '!nave-clear' },
+        { label: 'Dive down to the drowned bell', scene: 'hag-lair', when: ['nave-clear', '!hag-done'] },
+      ],
+    },
+    frostfang: {
+      name: 'Frostfang Pass', region: 'Mountains', x: 112, y: 34, effect: 'fog', danger: 3, tagline: 'Snow, wind and wolves',
+      desc: 'The road climbs into the Frostfang Mountains, narrowing to a ledge between a cliff and a long drop. Snow falls here instead of ash. Wolf tracks the size of dinner plates cross the trail.',
+      encounters: [{ chance: 0.4, groups: [['direwolf'], ['orc', 'orc'], ['direwolf', 'wolf', 'wolf']] }],
+      actions: [
+        { label: 'Climb to the frozen waterfall', scene: 'waterfall', when: '!seen:waterfall' },
+        { label: 'Track the white wolf', scene: 'frostmane-track', when: ['q-frostmane', '!frostmane-done'] },
+      ],
+    },
+    lodge: {
+      name: 'Stonewatch Lodge', region: 'Mountains', x: 136, y: 46, effect: 'smoke', safe: true, danger: 0, coach: true, tagline: 'A warm fire in the high passes',
+      desc: 'A long timber hall half-dug into the mountainside, its roof heavy with snow and antlers nailed over every door. Rangers and trappers warm their hands at a fire pit big enough to roast an ox.',
+      inn: { name: 'the lodge fire', price: 8 },
+      shop: [{ item: 'potion', price: 22 }, { item: 'greater-potion', price: 48 }],
+      actions: [
+        { label: 'Talk to Ranger Brakka', scene: 'brakka', when: '!seen:brakka' },
+        { label: 'Talk to Ranger Brakka', scene: 'brakka-again', when: 'seen:brakka' },
+      ],
+    },
+    ironjaw: {
+      name: 'Ironjaw Hold', region: 'Fortress', x: 134, y: 12, effect: 'embers', danger: 4, tagline: 'The warlord\'s mountain',
+      desc: 'An old dwarven gatehouse carved into the mountain, now hung with bones and orc banners. War drums boom from inside. Fires burn on the battlements, and the wind carries the smell of roasting meat and hot iron.',
+      descIf: [{ when: 'grukk-done', text: 'The drums are silent. The banners of Ironjaw lie trampled in the snow.' }],
+      encounters: [{ when: '!grukk-done', chance: 0.45, groups: [['orc', 'orc'], ['orc', 'shaman'], ['orc', 'orc', 'shaman']] }],
+      actions: [
+        { label: 'Get past the gatehouse', scene: 'gatehouse', when: '!hold-open' },
+        { label: 'Storm the great hall', scene: 'great-hall', when: ['hold-open', '!grukk-done'] },
       ],
     },
   },
@@ -170,6 +289,16 @@ module.exports = {
     { a: 'hollow', b: 'watchtower', when: 'hermit-trail', hidden: true },
     { a: 'greyfen', b: 'crypt', when: 'crypt-found', hidden: true },
     { a: 'crypt', b: 'abbey', when: 'undercroft-open', hidden: true },
+    // beyond the Vale
+    { a: 'thornwick', b: 'bramble' },
+    { a: 'bramble', b: 'warren', when: 'warren-found', hidden: true },
+    { a: 'bramble', b: 'saltreed' },
+    { a: 'greyfen', b: 'saltreed' },
+    { a: 'saltreed', b: 'harrowmere' },
+    { a: 'harrowmere', b: 'shrine', when: 'q-hag', locked: 'No boatman will row you out to the Drowned Shrine without the Reeve\'s say-so.' },
+    { a: 'harrowmere', b: 'frostfang' },
+    { a: 'frostfang', b: 'lodge' },
+    { a: 'frostfang', b: 'ironjaw', when: 'ironjaw-route', locked: 'The trail to Ironjaw Hold is lost in the snow. Ranger Brakka at Stonewatch Lodge knows the way.' },
   ],
 
   // Random things that can happen when you arrive somewhere (if no fight breaks out).
@@ -182,6 +311,11 @@ module.exports = {
     { scene: 'ev-cart', where: ['old-road', 'watchtower'], once: true },
     { scene: 'ev-ashstorm', where: ['old-road', 'greyfen', 'watchtower'], when: '!bell-rung' },
     { scene: 'ev-odo', where: ['old-road', 'thornwick'], when: ['odo-saved', '!seen:ev-odo'] },
+    { scene: 'ev-caravan', where: ['saltreed', 'frostfang', 'bramble'] },
+    { scene: 'ev-blizzard', where: ['frostfang'] },
+    { scene: 'ev-fisher', where: ['saltreed'], once: true },
+    { scene: 'ev-herbs', where: ['bramble'] },
+    { scene: 'ev-shrine', where: ['bramble', 'saltreed'], when: '!shrine-used' },
   ],
 
   scenes: {
@@ -315,6 +449,14 @@ module.exports = {
           label: 'Take the notice: "MISSING: Lina, daughter of Tamsin the miller. Last seen near Whisperwood."',
           when: '!q-lina', set: 'q-lina', scene: 'board',
           quest: { id: 'lina', title: 'The Miller\'s Daughter', text: 'Lina went looking for mushrooms near Whisperwood and never came home. Talk to Tamsin the miller, then search the woods.' },
+        },
+        {
+          label: 'Read the notice: "TURNIP THIEVES in Bramblefields! Ask for Hobb, south of the village."',
+          when: ['!seen:hobb', '!heard-hobb'], set: 'heard-hobb', scene: 'board', text: 'Somebody has drawn a very angry turnip next to it.',
+        },
+        {
+          label: 'Read the notice: "HARROWMERE seeks brave souls. Ask for Reeve Odalys. East over the Saltreed Causeway."',
+          when: ['!seen:reeve', '!heard-reeve'], set: 'heard-reeve', scene: 'board', text: 'The paper smells faintly of smoked eel.',
         },
         {
           label: 'Claim the wolf bounty',
@@ -638,6 +780,214 @@ module.exports = {
         },
       ],
       noLeave: true,
+    },
+
+    // ---------------- Bramblefields & the Goblin Warren ----------------
+    hobb: {
+      title: 'Farmer Hobb',
+      text: 'A red-faced farmer is shaking a pitchfork at a hedge. "Goblins! Every night! My turnips, my washing, my left boots. Why only the left ones?" He notices you. "You look handy. Twenty years I\'ve farmed this field and I\'ve never asked for help, but I\'m asking now."',
+      choices: [
+        { label: '"We\'ll deal with your goblins."', text: '"Bless you. Their footprints are all over the lanes. Follow them and you\'ll find the nest, I\'d bet my last boot."', set: 'q-goblins', quest: { id: 'goblins', title: 'Turnip Thieves', text: 'Goblins are raiding farmer Hobb\'s fields in Bramblefields. Follow their footprints to their warren and put a stop to it.' } },
+        { label: 'Ask why goblins would want left boots', text: '"If I knew that, I\'d be a goblin." He thinks. "Or a philosopher."', scene: 'hobb' },
+      ],
+    },
+    footprints: {
+      title: 'Muddy footprints',
+      text: 'Small bare footprints wind through the sunken lanes, doubling back, crossing each other, and in one place walking straight up a tree and down again.',
+      choices: [
+        { label: 'Untangle the trail', check: { skill: 'survival', dc: 12 }, success: { text: '{name} sorts the real trail from the decoys. It leads south-west, to a hill riddled with burrows.', set: 'warren-found', xp: 50, quest: { id: 'goblins', text: 'The goblins live in a warren south-west of Bramblefields. Their king is in there somewhere.' } }, failure: { text: 'You follow the trail in a circle, straight into a goblin ambush. At least the ambushers came from somewhere…', combat: ['goblin', 'goblin', 'goblin'], win: { text: 'The last goblin runs, and you follow it all the way home: a hill riddled with burrows.', set: 'warren-found', quest: { id: 'goblins', text: 'The goblins live in a warren south-west of Bramblefields. Their king is in there somewhere.' } } } },
+        { label: 'Leave a turnip out and wait', check: { skill: 'stealth', dc: 11 }, success: { text: 'Before long a goblin creeps up, grabs the turnip and scurries off. {name} follows it all the way to a hill full of burrows.', set: 'warren-found', xp: 50, quest: { id: 'goblins', text: 'The goblins live in a warren south-west of Bramblefields. Their king is in there somewhere.' } }, failure: { text: 'The goblin spots {name}, shrieks, and its friends come running.', combat: ['goblin', 'goblin'], win: { text: 'You follow the survivors home to a hill full of burrows.', set: 'warren-found', quest: { id: 'goblins', text: 'The goblins live in a warren south-west of Bramblefields. Their king is in there somewhere.' } } } },
+      ],
+    },
+    'hobb-thanks': {
+      title: 'Farmer Hobb',
+      text: 'Hobb listens to the whole story with his mouth open. When you hand back a sack of left boots, he bursts into tears.',
+      choices: [
+        { label: 'Accept his thanks', text: '"It\'s not much," he says, pressing a purse and a basket of very large turnips on you. The turnips you leave with his wife. The purse you keep.', gold: 60, xp: 150, set: 'goblins-paid', quest: { id: 'goblins', done: true, text: 'The goblin king is beaten, and Hobb\'s turnips are safe.' } },
+      ],
+      noLeave: true,
+    },
+    'warren-tunnels': {
+      title: 'The tunnels',
+      text: 'The tunnels are low, dark and smell of wet dog. Somewhere ahead, goblins are arguing loudly about whose turn it is to guard the tunnels.',
+      choices: [
+        { label: 'Sneak past while they argue', check: { skill: 'stealth', dc: 13 }, success: { text: 'You creep past three goblins wrestling over a spear. None of them notice. Ahead, torchlight and a squeaky horn: the throne cave.', set: 'warren-deep', xp: 75 }, failure: { text: '"INTRUDERS!" The argument is instantly forgotten.', combat: ['goblin', 'goblin', 'goblin'], win: { text: 'The guards flee deeper in. You follow the sound of the horn.', set: 'warren-deep' } } },
+        { label: 'Settle the argument for them', check: { skill: 'persuasion', dc: 12 }, success: { text: '{name} declares that it is clearly the turn of whoever is not here. The goblins agree this is very wise and wander off to find him.', set: 'warren-deep', xp: 75 }, failure: { text: 'The goblins decide whose turn it is: yours.', combat: ['goblin', 'goblin', 'goblin'], win: { text: 'Argument settled. You head deeper in.', set: 'warren-deep' } } },
+        { label: 'Charge!', combat: ['goblin', 'goblin', 'goblin'], win: { text: 'The tunnel is clear. Ahead, torchlight and a squeaky horn.', set: 'warren-deep', give: { potion: 1 } } },
+      ],
+    },
+    'snik-throne': {
+      title: 'The throne of Snik',
+      text: 'In a cave stacked with stolen turnips sits a goblin a little bigger than the rest, on a throne of crates. He wears a tin crown and a single left boot. "I am SNIK," he announces. "King of Goblins! Lord of Turnips! Collector of Boots!"',
+      choices: [
+        { label: 'Fight!', combat: ['snik', 'goblin', 'goblin'], win: { text: 'Snik squeals and flees down a hole too small to follow, leaving his crown behind. The goblins scatter after him. They won\'t be raiding Bramblefields again in a hurry.', give: { 'goblin-crown': 1 }, gold: 30, set: 'snik-done', quest: { id: 'goblins', text: 'Snik the Goblin King has fled. Tell farmer Hobb in Bramblefields.' } } },
+        { label: '"Give back the boots, or else."', check: { skill: 'intimidation', dc: 15 }, success: { text: 'Snik looks at {name}, looks at his goblins, and very slowly takes off his crown. "Snik is… abdicating," he says, and hands it over along with a sack of boots.', give: { 'goblin-crown': 1 }, xp: 250, set: 'snik-done', quest: { id: 'goblins', text: 'Snik the Goblin King has given up. Tell farmer Hobb in Bramblefields.' } }, failure: { text: '"Or else WHAT?" Snik blows his horn.', combat: ['snik', 'goblin', 'goblin'], win: { text: 'Snik flees down a hole, leaving his crown behind.', give: { 'goblin-crown': 1 }, set: 'snik-done', quest: { id: 'goblins', text: 'Snik the Goblin King has fled. Tell farmer Hobb in Bramblefields.' } } } },
+      ],
+    },
+
+    // ---------------- Saltreed Causeway ----------------
+    barge: {
+      title: 'The sunken barge',
+      text: 'A merchant barge lies half-sunk against the causeway, its hold flooded to the waist. Crates float in the dark water.',
+      choices: [
+        { label: 'Search the hold carefully', check: { skill: 'investigation', dc: 12 }, success: { text: '{name} finds a watertight strongbox wedged under a beam: coins, and a sealed vial.', gold: 40, give: { 'greater-potion': 1 }, xp: 50 }, failure: { text: 'Something grabs {name}\'s ankle. The barge\'s crew never left.', combat: ['drowned', 'drowned'], win: { text: 'The drowned sink back into the water. One was still wearing the captain\'s purse.', gold: 25 } } },
+        { label: 'Leave it be', text: 'Some things are better left under the water.' },
+      ],
+    },
+    tollhouse: {
+      title: 'The toll-house shrine',
+      text: 'Halfway across the causeway stands a roofless toll-house. Fishers have turned it into a shrine: shells, net-floats and little carved boats crowd every ledge. A sign says HARROWMERE, 1 DAY, with an arrow.',
+      choices: [
+        { label: 'Leave a carved boat of your own', check: { skill: 'religion', dc: 11 }, success: { text: 'A cool breeze off the lake washes over you, carrying away aches and weariness.', healParty: 'half', restoreSlots: true, xp: 50 }, failure: { text: 'You leave the boat among the others. It feels like the right thing to do.' } },
+        { label: 'Read the messages carved in the walls', text: '"Come home, Pell." "The hag took my brother." "DON\'T fish the shrine waters." Many of the names are recent.', set: 'hint-hag-rumor' },
+      ],
+    },
+
+    // ---------------- Harrowmere ----------------
+    reeve: {
+      title: 'Reeve Odalys',
+      text: 'Reeve Odalys is a tall, tired woman with ink on her fingers and a harpoon on the wall behind her desk. "Adventurers. Gods be thanked. I have two problems and no one to send."',
+      choices: [
+        { label: 'Ask about the first problem', when: '!q-hag', text: '"Something in the Mere is drowning my fishers. The old folk say it\'s the Mere Hag, come back to the sunken shrine. Six boats this month. Find it. End it. The town will pay a hundred and fifty gold."', set: 'q-hag', scene: 'reeve', quest: { id: 'hag', title: 'The Mere Hag', text: 'Something is drowning the fishers of Harrowmere. Find the Mere Hag at the Drowned Shrine, south-east of town, and end it.' } },
+        { label: 'Ask about the second problem', when: '!q-orcs', text: '"Orcs. A warband out of the Frostfang Mountains, led by a brute called Grukk. They raid our caravans on the pass road. The rangers at Stonewatch Lodge know the mountains. Stop Grukk and Harrowmere will pay two hundred gold."', set: 'q-orcs', scene: 'reeve', quest: { id: 'orcs', title: 'The Ironjaw Warband', text: 'Warlord Grukk\'s orcs are raiding the pass road. Ask Ranger Brakka at Stonewatch Lodge the way to his hold, and stop him.' } },
+        { label: 'Ask about the town', text: '"Harrowmere. Built on stilts because the Mere floods every spring. Dunmar\'s forge is the best this side of the mountains, and the Jolly Eel does a fish pie you\'ll dream about. The coach to Thornwick leaves from the north pier."', scene: 'reeve' },
+      ],
+    },
+    'reeve-again': {
+      title: 'Reeve Odalys',
+      text: 'Odalys looks up from a pile of ledgers. "Well?"',
+      choices: [
+        { label: 'Ask about her problems again', when: ['!q-hag'], text: 'She sighs and tells you about the drownings and the orcs.', scene: 'reeve' },
+        { label: 'Ask about her problems again', when: ['q-hag', '!q-orcs'], text: 'She tells you about the orcs.', scene: 'reeve' },
+        { label: 'Report: the Mere Hag is dead', when: ['hag-done', '!hag-paid'], text: 'Odalys closes her eyes for a long moment. "Six boats. Thank you." She counts out the gold herself, and adds a little extra.', gold: 150, xp: 200, set: 'hag-paid', scene: 'reeve-again', quest: { id: 'hag', done: true, text: 'The Mere Hag is gone, and the fishers of Harrowmere are safe on the water.' } },
+        {
+          label: 'Report: Warlord Grukk is beaten', when: ['grukk-done', '!orcs-paid'],
+          text: 'The Reeve stands up so fast her chair falls over. Within the hour the whole town knows.', gold: 200, xp: 300, set: 'orcs-paid',
+          quest: { id: 'orcs', done: true, text: 'Warlord Grukk is beaten and the Ironjaw warband scattered.' },
+          end: { title: 'Heroes of the Mere', text: 'Harrowmere throws a festival that lasts three days. There are paper lanterns, fish pie, and a song about you that gets the details hilariously wrong.\n\nThe roads are safer from the Vale to the mountains, and your names are spoken in two towns now. The world is still wide open, if you want it.' },
+        },
+        { label: 'Just passing through', text: '"Then pass through quietly. I have ledgers."' },
+      ],
+    },
+    dunmar: {
+      title: 'Dunmar\'s forge',
+      text: 'Dunmar is a dwarf with a beard tucked into his belt and arms like anchor chains. Blades and mail hang from every rafter. "Lake steel and mountain silver. Not cheap, but you\'ll live long enough to complain about the price."',
+      choices: [
+        { label: 'Runed blade (+2 to hit, +2 damage)', cost: 220, give: { 'runed-blade': 1 }, text: '"Runes say \'pointy end first\'. Old dwarf joke."', scene: 'dunmar' },
+        { label: 'Mithril shirt (+3 AC)', cost: 200, give: { 'mithril-shirt': 1 }, text: '"Light as a song. Don\'t tell the elves where you got it."', scene: 'dunmar' },
+        { label: 'Moonstone orb (+2 spell attacks and DCs)', cost: 200, give: { 'focus-orb': 1 }, text: '"For the wavy-hands sort. No offence."', scene: 'dunmar' },
+        { label: 'Ask for advice', text: '"The hag hates bells, they say. And orcs fight fair one-on-one if you shame them into it. Grukk\'s proud. Use that."', set: 'hint-grukk', scene: 'dunmar' },
+      ],
+    },
+    fishers: {
+      title: 'The Jolly Eel',
+      text: 'You buy a round, and the fishers of Harrowmere tell you everything, mostly at once.',
+      choices: [
+        { label: 'Ask about the Mere Hag', text: '"There\'s a bell down in the drowned shrine," says an old woman. "My gran said the monks rang it to keep the hag asleep. Ring that bell and she\'ll come up weak and screaming, without her drowned ones."', set: 'hint-hag', scene: 'fishers' },
+        { label: 'Ask about the mountains', text: '"Brakka at the lodge is the one to ask. Mind the white wolf up there. Frostmane, they call it. Big as a horse."', scene: 'fishers' },
+      ],
+    },
+
+    // ---------------- The Drowned Shrine ----------------
+    nave: {
+      title: 'The flooded nave',
+      text: 'Waist-deep water fills the nave. Pale shapes stand motionless between the pillars, facing the altar, swaying gently. Drowned sailors, still in their oilskins.',
+      choices: [
+        { label: 'Fight!', combat: ['drowned', 'drowned'], win: { text: 'The drowned sink and do not rise. Beyond the altar, steps lead down into the dark water.', set: 'nave-clear', give: { potion: 1 } } },
+        { label: 'Climb along the rafters above them', check: { skill: 'acrobatics', dc: 13 }, success: { text: '{name} leads the way along the rotten beams, and you drop down silently beyond the altar.', set: 'nave-clear', xp: 100 }, failure: { text: 'A beam snaps. Splash. Every head turns.', combat: ['drowned', 'drowned'], win: { text: 'The nave falls still.', set: 'nave-clear' } } },
+      ],
+    },
+    'hag-lair': {
+      title: 'The drowned bell',
+      text: 'You dive down through green water into an air-filled cave beneath the shrine. A great bronze bell lies on its side in the mud. On top of it crouches the Mere Hag: long limbs, weed for hair, and a smile with too many teeth. "More visitors," she croons. "Stay. Everyone stays."',
+      choices: [
+        { label: 'Ring the drowned bell first', when: 'hint-hag', check: { skill: 'athletics', dc: 12 }, success: { text: '{name} heaves the bell upright and strikes it. The note shakes the cave. The hag shrieks and clutches her ears, and her drowned servants crumble into silt.', xp: 100, combat: ['hag'], flee: false, win: { text: 'The Mere Hag dissolves into black water. Among the silt you find a cold, shining amulet, and the purses of a dozen drowned fishers.', give: { 'tide-amulet': 1 }, gold: 60, set: 'hag-done', quest: { id: 'hag', text: 'The Mere Hag is dead. Tell Reeve Odalys in Harrowmere.' } } }, failure: { text: 'The bell won\'t budge. The hag laughs and calls her drowned.', combat: ['hag', 'drowned'], flee: false, win: { text: 'The Mere Hag dissolves into black water, leaving a shining amulet and the purses of the drowned.', give: { 'tide-amulet': 1 }, gold: 60, set: 'hag-done', quest: { id: 'hag', text: 'The Mere Hag is dead. Tell Reeve Odalys in Harrowmere.' } } } },
+        { label: 'Fight!', combat: ['hag', 'drowned'], flee: false, win: { text: 'The Mere Hag dissolves into black water, leaving a shining amulet and the purses of the drowned.', give: { 'tide-amulet': 1 }, gold: 60, set: 'hag-done', quest: { id: 'hag', text: 'The Mere Hag is dead. Tell Reeve Odalys in Harrowmere.' } } },
+      ],
+      noLeave: true,
+    },
+
+    // ---------------- Frostfang Pass & Stonewatch Lodge ----------------
+    waterfall: {
+      title: 'The frozen waterfall',
+      text: 'A waterfall has frozen solid into a curtain of blue ice. Behind it, you glimpse the dark mouth of a carved doorway: dwarf-work.',
+      choices: [
+        { label: 'Climb up behind the ice', check: { skill: 'athletics', dc: 13 }, success: { text: '{name} chips handholds up the ice. Behind it is an old dwarven waystation, and a cache nobody has opened in a century.', gold: 50, give: { elixir: 1, 'greater-potion': 1 }, xp: 100 }, failure: { text: 'The ice cracks and {name} slides down in a shower of shards.', damage: '1d6' } },
+        { label: 'Look out over the pass from the ledge', check: { skill: 'survival', dc: 12 }, success: { text: 'From up here {name} can see it all: the lodge smoke to the east, and high to the north, fires on the walls of an old dwarven hold. A goat-trail winds up toward it.', set: 'ironjaw-route', xp: 50 }, failure: { text: 'Snow blows into your eyes. All you can see is white.' } },
+      ],
+    },
+    'frostmane-track': {
+      title: 'The white wolf',
+      text: 'The great tracks lead up into a high, silent valley. Bones lie scattered in the snow: elk, sheep, and a trapper\'s broken spear.',
+      choices: [
+        { label: 'Follow the tracks to its den', check: { skill: 'survival', dc: 13 }, success: { text: '{name} finds the den, and you take Frostmane by surprise. It is the biggest wolf you have ever seen, white as the snow, with eyes like ice.', combat: ['frostmane'], flee: false, win: { text: 'Frostmane falls with a last echoing howl. The mountain is very quiet.', set: 'frostmane-done', xp: 50, quest: { id: 'frostmane', text: 'Frostmane is dead. Tell Ranger Brakka at Stonewatch Lodge.' } } }, failure: { text: 'You are following the tracks when the howling starts, all around you.', combat: ['frostmane', 'direwolf'], flee: false, win: { text: 'Frostmane falls. The rest of the pack melts away into the snow.', set: 'frostmane-done', quest: { id: 'frostmane', text: 'Frostmane is dead. Tell Ranger Brakka at Stonewatch Lodge.' } } } },
+        { label: 'Turn back for now', text: 'There will be another day for wolf-hunting.' },
+      ],
+    },
+    brakka: {
+      title: 'Ranger Brakka',
+      text: 'Brakka is a half-orc woman with a bow across her back and a scar across her nose. "Lowlanders. Don\'t see many up here. Sit. Eat. Then tell me what you want."',
+      choices: [
+        { label: 'Ask the way to Ironjaw Hold', text: 'She spreads a map on the table and taps a skull drawn high on the cliffs. "Grukk took the old dwarf hold last winter. The trail\'s hidden, but this will get you there. Take it. Kill him and I\'ll drink to you."', give: { 'ranger-map': 1 }, set: 'ironjaw-route', scene: 'brakka', quest: { id: 'orcs', text: 'Brakka gave you a map to Ironjaw Hold, high above Frostfang Pass. Stop Warlord Grukk.' }, when: '!ironjaw-route' },
+        { label: 'Ask if the rangers need help', when: '!q-frostmane', text: '"There\'s a white wolf up the pass. Frostmane. It\'s killed three trappers and half the elk in the valley. Bring me its pelt and I\'ll have it made into a cloak for you that\'ll turn an orc axe."', set: 'q-frostmane', scene: 'brakka', quest: { id: 'frostmane', title: 'The White Wolf', text: 'A giant white wolf called Frostmane is hunting in Frostfang Pass. Track it down, then return to Ranger Brakka.' } },
+      ],
+    },
+    'brakka-again': {
+      title: 'Ranger Brakka',
+      text: 'Brakka nods at the bench across the fire. "Back again."',
+      choices: [
+        { label: 'Ask the way to Ironjaw Hold', when: '!ironjaw-route', text: '"Here." She hands you a hand-drawn map. "Go kill an orc."', give: { 'ranger-map': 1 }, set: 'ironjaw-route', scene: 'brakka-again' },
+        { label: 'Ask if the rangers need help', when: '!q-frostmane', text: 'She tells you about Frostmane, the white wolf.', scene: 'brakka' },
+        { label: 'Bring her Frostmane\'s pelt', when: ['frostmane-done', '!frostmane-paid'], text: 'Brakka whistles low. Three days later she hands you a cloak of thick white fur, lined with leather. "Wear it with pride. The whole mountain will know what you did."', give: { 'frost-cloak': 1 }, xp: 200, set: 'frostmane-paid', scene: 'brakka-again', quest: { id: 'frostmane', done: true, text: 'Frostmane is dead, and you wear its pelt as a cloak.' } },
+        { label: 'Listen to the rangers\' stories', text: 'The rangers tell of avalanches, ice trolls and a dwarf king\'s lost gold. Some of it might even be true.' },
+      ],
+    },
+
+    // ---------------- Ironjaw Hold ----------------
+    gatehouse: {
+      title: 'The gatehouse',
+      text: 'The great dwarven gate stands half-open, guarded by orcs warming themselves at a brazier. Above them, a shaman with a staff of bones watches the road.',
+      choices: [
+        { label: 'Fight!', combat: ['orc', 'orc', 'shaman'], win: { text: 'The guards fall. The gate stands open, and the drums inside go on booming. Nobody heard.', set: 'hold-open', give: { 'greater-potion': 1 } } },
+        { label: 'Climb the cliff and slip in over the wall', check: { skill: 'stealth', dc: 14 }, success: { text: 'You climb in the dark, drop over the wall and land in a storeroom full of stolen caravan goods. Nobody saw a thing.', set: 'hold-open', xp: 150, gold: 40 }, failure: { text: 'A rock clatters down onto the brazier. The orcs look up.', combat: ['orc', 'orc', 'shaman'], win: { text: 'The gate is yours.', set: 'hold-open' } } },
+        { label: 'Pose as mercenaries looking for work', check: { skill: 'deception', dc: 14 }, success: { text: '"Grukk always wants more axes," grunts the guard, and waves you through.', set: 'hold-open', xp: 150 }, failure: { text: '"Mercenaries don\'t smell of soap." The orcs draw their axes.', combat: ['orc', 'orc', 'shaman'], win: { text: 'The gate is yours.', set: 'hold-open' } } },
+      ],
+    },
+    'great-hall': {
+      title: 'The great hall',
+      text: 'The dwarven great hall is lit by roaring fire pits. On a throne of stolen shields sits Warlord Grukk, huge, scarred, a greataxe across his knees. He laughs, and the hall laughs with him. "Little lowlanders. Come to die in Grukk\'s hall?"',
+      choices: [
+        { label: 'Fight!', combat: ['grukk', 'orc', 'shaman'], flee: false, win: { text: 'Grukk crashes down onto his throne of shields and does not rise. His warband flees out into the snow. The greataxe is yours, if you can lift it.', give: { 'ironjaw-axe': 1 }, gold: 80, set: 'grukk-done', quest: { id: 'orcs', text: 'Warlord Grukk is beaten. Tell Reeve Odalys in Harrowmere.' } } },
+        { label: 'Challenge him to single combat', when: 'hint-grukk', check: { skill: 'intimidation', dc: 13 }, success: { text: '"Only cowards hide behind their warband," {name} shouts. The hall goes silent. Grukk stands. "No one calls Grukk coward. You and me. Now." His orcs step back to watch.', xp: 150, combat: ['grukk'], flee: false, win: { text: 'Grukk falls, beaten fair. His orcs bow their heads, gather their things and leave Ironjaw Hold forever. They leave the greataxe for you.', give: { 'ironjaw-axe': 1 }, gold: 80, set: 'grukk-done', quest: { id: 'orcs', text: 'Warlord Grukk is beaten. Tell Reeve Odalys in Harrowmere.' } } }, failure: { text: 'Grukk laughs. "Grukk is not stupid." He waves his warband forward.', combat: ['grukk', 'orc', 'shaman'], flee: false, win: { text: 'Grukk falls, and his warband flees into the snow.', give: { 'ironjaw-axe': 1 }, gold: 80, set: 'grukk-done', quest: { id: 'orcs', text: 'Warlord Grukk is beaten. Tell Reeve Odalys in Harrowmere.' } } } },
+      ],
+      noLeave: true,
+    },
+
+    // ---------------- Events beyond the Vale ----------------
+    'ev-caravan': {
+      title: 'A merchant caravan',
+      text: 'Three wagons with armed guards rumble along the road, flying the eel banner of Harrowmere. "Trading, friends? We\'ve got the good stuff."',
+      choices: [
+        { label: 'Greater healing potion', cost: 45, give: { 'greater-potion': 1 }, text: '"Lake-brewed!"', scene: 'ev-caravan' },
+        { label: 'Elixir of focus', cost: 38, give: { elixir: 1 }, text: '"Sharp as a heron."', scene: 'ev-caravan' },
+        { label: 'Two fire flasks', cost: 30, give: { 'fire-flask': 2 }, text: '"Handle with care. Seriously."', scene: 'ev-caravan' },
+      ],
+    },
+    'ev-blizzard': {
+      title: 'Blizzard',
+      text: 'The wind screams down off the peaks and the world turns white.',
+      choices: [
+        { label: 'Dig a snow shelter', check: { skill: 'survival', dc: 13 }, success: { text: '{name} digs you all into a snowbank. You huddle together until it passes, cold but whole.' }, failure: { text: 'The shelter collapses. Frost bites at fingers and faces.', damageAll: '1d6' } },
+        { label: 'Push on', check: { ability: 'con', dc: 12, save: true }, success: { text: '{name} breaks trail through the drifts, and you all make it out.' }, failure: { text: 'You stagger on, numb with cold.', damageAll: '1d8' } },
+      ],
+      noLeave: true,
+    },
+    'ev-fisher': {
+      title: 'A fisher\'s catch',
+      text: 'A fisher is hauling desperately on a net by the causeway. "Help! Something\'s in it, something heavy!"',
+      choices: [
+        { label: 'Help haul the net', check: { skill: 'athletics', dc: 12 }, success: { text: 'Together you heave up… a barnacled chest! The fisher splits the coins with you, beaming.', gold: 35, xp: 50 }, failure: { text: 'The net tears and whatever it was sinks back down. The fisher sighs. "Story of my life."' } },
+      ],
     },
   },
 };

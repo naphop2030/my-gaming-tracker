@@ -1,13 +1,14 @@
 // The 3D world map: a hex-tile game board with a little diorama for every place you know about,
 // stepping-stone roads, fog over unexplored land, and the party's miniature walking between places.
-import { THREE, View, kitPiece, Actor, lights, weatherPoints, dioramaFor, isWatery } from './core.js';
+import { THREE, View, kitPiece, Actor, lights, weatherPoints, dioramaFor, isWatery, isSnowy, boardScale } from './core.js';
 import { makeDie } from './dice.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-const S = 0.34; // world units per map unit (the adventure map is 100 x 70)
-const toWorld = (x, y) => new THREE.Vector3((x - 50) * S, 0, (y - 35) * S);
-const HALF_W = 50 * S + 1.5;
-const HALF_D = 35 * S + 1.5;
+const S = 0.34; // world units per map unit (the adventure says how big its map is)
+let MAP = { w: 100, h: 70 };
+const toWorld = (x, y) => new THREE.Vector3((x - MAP.w / 2) * S, 0, (y - MAP.h / 2) * S);
+let HALF_W = 50 * S + 1.5;
+let HALF_D = 35 * S + 1.5;
 
 function rng(seed) {
   let a = seed >>> 0;
@@ -122,33 +123,7 @@ export class Board {
       t.y = 0;
     });
 
-    // The board sits on a wooden table in a dim, candle-lit room.
     scene.background = canvasTex(512, 512, (g) => { const r = g.createRadialGradient(256, 300, 40, 256, 256, 360); r.addColorStop(0, '#3a2a1e'); r.addColorStop(1, '#0b0705'); g.fillStyle = r; g.fillRect(0, 0, 512, 512); });
-    const wood = woodTex();
-    wood.wrapS = wood.wrapT = THREE.RepeatWrapping;
-    wood.repeat.set(2, 2);
-    const table = new THREE.Mesh(new THREE.BoxGeometry(HALF_W * 2 + 26, 0.6, HALF_D * 2 + 22), new THREE.MeshStandardMaterial({ map: wood, roughness: 0.75 }));
-    table.position.y = -0.85;
-    table.receiveShadow = true;
-    scene.add(table);
-    // a dark wooden frame around the board, like a real game box
-    const frameMat = new THREE.MeshStandardMaterial({ color: 0x3a2414, roughness: 0.6, metalness: 0.05 });
-    const trimMat = new THREE.MeshStandardMaterial({ color: 0xb08a3a, roughness: 0.35, metalness: 0.8 });
-    const fw = 0.7;
-    for (const [w, d, x, z] of [[HALF_W * 2 + fw * 2, fw, 0, -HALF_D - fw / 2], [HALF_W * 2 + fw * 2, fw, 0, HALF_D + fw / 2], [fw, HALF_D * 2, -HALF_W - fw / 2, 0], [fw, HALF_D * 2, HALF_W + fw / 2, 0]]) {
-      const b = new THREE.Mesh(new THREE.BoxGeometry(w, 0.75, d), frameMat);
-      b.position.set(x, -0.2, z);
-      b.castShadow = b.receiveShadow = true;
-      scene.add(b);
-      const long = w > d;
-      const t = new THREE.Mesh(new THREE.BoxGeometry(long ? w + 0.02 : w * 0.25, 0.05, long ? d * 0.25 : d + 0.02), trimMat);
-      t.position.set(x, 0.19, z);
-      scene.add(t);
-    }
-    const under = new THREE.Mesh(new THREE.BoxGeometry(HALF_W * 2, 0.5, HALF_D * 2), new THREE.MeshStandardMaterial({ color: 0x2a1c12 }));
-    under.position.y = -0.45;
-    scene.add(under);
-    this.addTableProps();
 
     this.grass = await kitPiece('hex_grass');
     this.water = await kitPiece('hex_water');
@@ -176,9 +151,47 @@ export class Board {
     this.view.tickers.add((dt) => this.tick(dt));
   }
 
+  // The table, frame and props depend on how big the map is.
+  setSize(size) {
+    MAP = { w: size.w, h: size.h };
+    HALF_W = (MAP.w / 2) * S + 1.5;
+    HALF_D = (MAP.h / 2) * S + 1.5;
+    this.controls.maxDistance = Math.max(34, Math.max(HALF_W, HALF_D) * 1.7);
+    if (this.tableGroup) this.scene.remove(this.tableGroup);
+    const T = new THREE.Group();
+    this.tableGroup = T;
+    this.scene.add(T);
+    // The board sits on a wooden table in a dim, candle-lit room.
+    const wood = woodTex();
+    wood.wrapS = wood.wrapT = THREE.RepeatWrapping;
+    wood.repeat.set(2, 2);
+    const table = new THREE.Mesh(new THREE.BoxGeometry(HALF_W * 2 + 26, 0.6, HALF_D * 2 + 22), new THREE.MeshStandardMaterial({ map: wood, roughness: 0.75 }));
+    table.position.y = -0.85;
+    table.receiveShadow = true;
+    T.add(table);
+    // a dark wooden frame around the board, like a real game box
+    const frameMat = new THREE.MeshStandardMaterial({ color: 0x3a2414, roughness: 0.6, metalness: 0.05 });
+    const trimMat = new THREE.MeshStandardMaterial({ color: 0xb08a3a, roughness: 0.35, metalness: 0.8 });
+    const fw = 0.7;
+    for (const [w, d, x, z] of [[HALF_W * 2 + fw * 2, fw, 0, -HALF_D - fw / 2], [HALF_W * 2 + fw * 2, fw, 0, HALF_D + fw / 2], [fw, HALF_D * 2, -HALF_W - fw / 2, 0], [fw, HALF_D * 2, HALF_W + fw / 2, 0]]) {
+      const b = new THREE.Mesh(new THREE.BoxGeometry(w, 0.75, d), frameMat);
+      b.position.set(x, -0.2, z);
+      b.castShadow = b.receiveShadow = true;
+      T.add(b);
+      const long = w > d;
+      const t = new THREE.Mesh(new THREE.BoxGeometry(long ? w + 0.02 : w * 0.25, 0.05, long ? d * 0.25 : d + 0.02), trimMat);
+      t.position.set(x, 0.19, z);
+      T.add(t);
+    }
+    const under = new THREE.Mesh(new THREE.BoxGeometry(HALF_W * 2, 0.5, HALF_D * 2), new THREE.MeshStandardMaterial({ color: 0x2a1c12 }));
+    under.position.y = -0.45;
+    T.add(under);
+    this.addTableProps(T);
+
+  }
+
   // Things lying on the table around the board: candles, dice, coins and a rolled-up map.
-  async addTableProps() {
-    const scene = this.scene;
+  async addTableProps(scene) {
     const y = -0.55;
     this.candles = [];
     for (const [x, z] of [[-HALF_W - 4, -HALF_D + 1], [HALF_W + 4.5, -HALF_D - 1.5], [HALF_W + 3, HALF_D + 2.5]]) {
@@ -265,10 +278,13 @@ export class Board {
     const m4 = new THREE.Matrix4();
     piece.traverse((mesh) => {
       if (!mesh.isMesh) return;
-      const inst = new THREE.InstancedMesh(mesh.geometry, mesh.material.clone(), placements.length);
+      const mat = mesh.material.clone();
+      if (placements.plain) { mat.map = null; mat.color = new THREE.Color(0xffffff); mat.roughness = 0.85; } // snow
+      const inst = new THREE.InstancedMesh(mesh.geometry, mat, placements.length);
       inst.receiveShadow = true;
+      inst.castShadow = !!placements.shadow;
       placements.forEach((p, i) => {
-        m4.makeTranslation(p.x, p.y || 0, p.z).multiply(mesh.matrixWorld);
+        m4.compose(new THREE.Vector3(p.x, p.y || 0, p.z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), p.rot || 0), new THREE.Vector3().setScalar(p.s || 1)).multiply(mesh.matrixWorld);
         inst.setMatrixAt(i, m4);
         inst.setColorAt(i, p.c);
       });
@@ -287,6 +303,8 @@ export class Board {
     const known = A.world.nodes;
     const knownPos = known.map((n) => ({ n, p: toWorld(n.x, n.y) }));
     const water = known.filter((n) => isWatery(n.id, n.region)).map((n) => toWorld(n.x, n.y));
+    const snow = known.filter((n) => isSnowy(n.id, n.region)).map((n) => toWorld(n.x, n.y));
+    const snowWhite = new THREE.Color(0xeef2f8);
 
     if (this.mood !== mood) {
       this.mood = mood;
@@ -310,6 +328,8 @@ export class Board {
     // patches, forests grow in clumps, and mountains crowd the edges of the board.
     const grassP = [];
     const waterP = [];
+    const snowP = [];
+    snowP.plain = true;
     const rand = rng(7);
     const decor = [];
     const roads = [];
@@ -333,11 +353,14 @@ export class Board {
       const n1 = fbm(x * 0.18, z * 0.18);
       const n2 = noise(x * 0.5 + 40, z * 0.5);
       const c = lush.clone().lerp(dry, Math.max(0, Math.min(1, (n1 - 0.35) * 2))).lerp(grey, n2 * 0.35).multiplyScalar(light * (0.92 + hash(x, z) * 0.16));
+      const ds = Math.min(99, ...snow.map((w) => Math.hypot(w.x - x, w.z - z)));
+      const snowy = ds < 7 - hash(x + 3, z) * 2;
       const edge = Math.max(Math.abs(x) / HALF_W, Math.abs(z) / HALF_D);
       if (isWater) { waterP.push({ x, z, c: new THREE.Color(ash ? 0x9a9a8a : 0xffffff).multiplyScalar(light) }); if (level < 2) this.waterSpots.push(new THREE.Vector3(x, this.tileTop + 0.05, z)); continue; }
       // the very edge rises into hills so the board doesn't just stop
       const raise = edge > 0.93 ? 0.12 : 0;
-      grassP.push({ x, z, y: raise, c });
+      if (snowy) snowP.push({ x, z, y: raise, c: snowWhite.clone().multiplyScalar(light * (0.9 + hash(x, z) * 0.1)) });
+      else grassP.push({ x, z, y: raise, c });
       if (level === 2 && rand() < 0.22) this.mistSpots.push(new THREE.Vector3(x, this.tileTop + 0.4, z));
       const dPlace = d;
       if (dPlace < 2.4 || nearRoad(x, z)) continue;
@@ -351,14 +374,14 @@ export class Board {
       if (pick) decor.push({ pick, x, z, y: raise, rot: Math.floor(rand() * 6) * (Math.PI / 3), s: 0.85 + rand() * 0.25, dim: light < 0.9 });
     }
     add(this.instanced(this.grass, grassP));
+    if (snowP.length) add(this.instanced(this.grass, snowP));
     if (waterP.length) add(this.instanced(this.water, waterP));
-    for (const d of decor) {
-      const o = await kitPiece(d.pick);
-      o.position.set(d.x, this.tileTop + d.y, d.z);
-      o.rotation.y = d.rot;
-      o.scale.setScalar(d.s);
-      if (d.dim) setDim(o, true);
-      add(o);
+    // Scenery is drawn as one instanced batch per kind of piece (there can be hundreds).
+    const byPick = new Map();
+    for (const d of decor) { if (!byPick.has(d.pick)) byPick.set(d.pick, []); byPick.get(d.pick).push({ x: d.x, y: this.tileTop + d.y, z: d.z, rot: d.rot, s: d.s, c: new THREE.Color(d.dim ? 0x555555 : 0xffffff) }); }
+    for (const [pick, list] of byPick) {
+      list.shadow = true;
+      add(this.instanced(await kitPiece(pick), list));
     }
     // Mist curls over the land you haven't explored.
     this.mist = [];
@@ -397,7 +420,7 @@ export class Board {
         const o = await kitPiece(piece);
         o.position.set(dx, 0, dz);
         o.rotation.y = (rot || 0) * Math.PI * 2;
-        o.scale.setScalar(s || 1);
+        o.scale.setScalar((s || 1) * boardScale(piece));
         g.add(o);
       }
       if (!n.visited) setDim(g, true);
@@ -482,6 +505,8 @@ export class Board {
     await this.ready;
     this.nodes = A.world.nodes;
     const key = JSON.stringify([A.world.nodes.map((n) => [n.id, n.visited]), A.world.edges, A.ambience]);
+    const size = A.world.size || { w: 100, h: 70 };
+    if (!this.tableGroup || size.w !== MAP.w || size.h !== MAP.h) { this.setSize(size); this.key = ''; }
     if (key !== this.key) {
       this.key = key;
       const token = (this.buildToken = {});
@@ -521,7 +546,7 @@ export class Board {
         this.pins.set(n.id, pin);
       }
       const exit = exits.get(n.id);
-      pin.className = `pin3d${n.here ? ' here' : ''}${exit && exit.ok && !A.combat ? ' go' : ''}${exit && !exit.ok ? ' locked' : ''}${n.visited ? '' : ' unknown'}`;
+      pin.className = `pin3d${n.here ? ' here' : ''}${exit && exit.ok && !A.combat ? ' go' : ''}${exit && !exit.ok ? ' locked' : ''}${n.visited ? '' : ' unknown'}${n.todo ? ' todo' : ''}`;
       pin.textContent = n.visited ? n.name : `${n.name}?`;
       if (n.here) { const s = document.createElement('small'); s.textContent = 'You are here'; pin.append(s); }
       pin.title = exit && exit.ok ? `Travel to ${n.name}` : exit ? exit.locked : n.name;

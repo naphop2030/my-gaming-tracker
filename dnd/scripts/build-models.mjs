@@ -62,7 +62,9 @@ const KIT = ['hex_grass', 'hex_water', 'building_home_A_yellow', 'building_home_
   'lantern_standing', 'post_lantern', 'shrine_candles', 'fence_broken', 'skull', 'waterplant_A', 'waterplant_B', 'waterlily_A', 'pillar',
   'arch_gate', 'Skeleton_Blade', 'Skeleton_Shield_Small_A', 'barrel', 'crate_A_big',
   'mountain_A', 'mountain_C_grass_trees', 'hills_B_trees', 'hills_C_trees', 'trees_A_medium', 'trees_A_small', 'trees_B_small',
-  'hill_single_B', 'hill_single_C', 'rock_single_B', 'rock_single_D', 'rock_single_E'];
+  'hill_single_B', 'hill_single_C', 'rock_single_B', 'rock_single_D', 'rock_single_E',
+  'building_market_blue', 'building_watermill_blue', 'building_bridge_A', 'building_castle_red', 'building_barracks_red', 'building_mine_red',
+  'building_tower_catapult_red', 'building_home_A_blue', 'building_lumbermill_blue', 'fence_wood_straight', 'resource_lumber'];
 
 // Drops animation tracks that only hold a bone still at its resting pose (most bones, most of the time).
 function dropStillTracks(doc) {

@@ -27,6 +27,11 @@ export async function kitPiece(name) {
   return piece;
 }
 
+// The Halloween pack is modelled about 4x bigger than the hexagon pack. On the battle stage that
+// matches the fighters, but on the world board those pieces need shrinking to sit on the tiles.
+const BIG_PIECES = new Set(['crypt', 'grave_A', 'gravestone', 'candle_triple', 'tree_dead_large', 'tree_dead_medium', 'lantern_standing', 'post_lantern', 'shrine_candles', 'fence_broken', 'skull', 'pillar', 'arch_gate']);
+export const boardScale = (name) => (BIG_PIECES.has(name) ? 0.3 : 1);
+
 // ---------- who looks like what ----------
 const KAYKIT_BODY = /(ArmLeft|ArmRight|Body|Head|Head_Hooded|LegLeft|LegRight)$/;
 const KAYKIT_ANIMS = { idle: 'Idle', attack: '1H_Melee_Attack_Chop', cast: 'Spellcast_Shoot', raise: 'Spellcast_Raise', hit: 'Hit_A', death: 'Death_A', dead: 'Death_A_Pose', cheer: 'Cheer', walk: 'Walking_A', block: 'Block', use: 'Use_Item' };
@@ -46,6 +51,16 @@ export const CAST = {
   skeleton: { model: 'skeleton-warrior', height: 1.75, weapons: { 'handslot.r': 'Skeleton_Blade', 'handslot.l': 'Skeleton_Shield_Small_A' }, anims: { awaken: 'Skeletons_Awaken_Standing', idle: 'Idle_Combat' } },
   cultist: { model: 'mage', show: ['1H_Wand', 'Mage_Cape'], height: 1.7, tint: 0xc0605a, anims: { attack: 'Spellcast_Shoot' } },
   priest: { model: 'mage', show: ['2H_Staff', 'Mage_Hat', 'Mage_Cape'], height: 2.35, tint: 0xffb08a, glow: 0xff4a10, anims: { attack: 'Spellcast_Shoot' } },
+  // beyond the Vale
+  goblin: { model: 'orc', height: 1.15, tint: 0x9ad06a, anims: { idle: 'Idle', attack: 'Punch', hit: 'HitReact', death: 'Death', walk: 'Walk', cheer: 'Yes' } },
+  snik: { model: 'orc', height: 1.55, tint: 0xc8e878, glow: 0x3a4a00, anims: { idle: 'Idle', attack: 'Punch', hit: 'HitReact', death: 'Death', walk: 'Walk', cheer: 'Yes' } },
+  drowned: { model: 'orc', height: 1.85, tint: 0x7fa8b8, anims: { idle: 'Idle', attack: 'Punch', hit: 'HitReact', death: 'Death', walk: 'Walk', cheer: 'Yes' } },
+  hag: { model: 'mage', show: ['2H_Staff', 'Mage_Cape'], height: 2.3, tint: 0x7ab89a, glow: 0x0a7a5a, anims: { attack: 'Spellcast_Shoot' } },
+  direwolf: { model: 'wolf', height: 1.45, tint: 0x9a8a7a, anims: { idle: 'Idle', attack: 'Attack', hit: 'Idle_HitReact_Left', death: 'Death', walk: 'Walk', cheer: 'Idle_2' } },
+  frostmane: { model: 'wolf', height: 1.95, tint: 0xf4f8ff, glow: 0x30506a, anims: { idle: 'Idle', attack: 'Attack', hit: 'Idle_HitReact_Left', death: 'Death', walk: 'Walk', cheer: 'Idle_2' } },
+  orc: { model: 'orc', height: 2.0, tint: 0xd8b890, anims: { idle: 'Idle', attack: 'Punch', hit: 'HitReact', death: 'Death', walk: 'Walk', cheer: 'Yes' } },
+  shaman: { model: 'mage', show: ['2H_Staff', 'Mage_Cape'], height: 1.85, tint: 0x90c070, anims: { attack: 'Spellcast_Shoot' } },
+  grukk: { model: 'orc', height: 2.65, tint: 0xe09070, glow: 0x401000, anims: { idle: 'Idle', attack: 'Punch', hit: 'HitReact', death: 'Death', walk: 'Walk', cheer: 'Yes' } },
 };
 export const castFor = (kind) => CAST[kind] || CAST.bandit;
 
@@ -381,10 +396,19 @@ export const DIORAMAS = {
   watchtower: [['building_tower_B_red', 0, -0.3, 0, 0.9], ['tent', -1.4, 0.8, 0.2, 0.8], ['tent', 1.3, 0.9, -0.2, 0.8], ['flag_red', 0.9, -0.9, 0, 0.9], ['crate_A_big', -0.6, 1.2, 0.1, 0.7], ['building_destroyed', 1.8, -1.6, 0, 0.7]],
   greyfen: [['tree_dead_large', 0, -0.4, 0, 0.9], ['tree_dead_medium', 1.4, 0.6, 0.3, 0.9], ['waterplant_A', -0.9, 0.7, 0, 1], ['waterplant_B', 0.6, 1.2, 0, 1], ['waterlily_A', -0.4, 1.5, 0, 1], ['tree_dead_medium', -1.6, -0.9, 0.6, 0.8]],
   crypt: [['crypt', 0, -0.3, 0, 0.9], ['grave_A', -1.3, 0.8, 0.1, 0.9], ['gravestone', 1.2, 0.9, -0.1, 0.9], ['candle_triple', 0.4, 1.0, 0, 1], ['tree_dead_large', -1.6, -1.2, 0, 0.8], ['fence_broken', 1.5, -0.4, 0.25, 0.9]],
+  bramble: [['building_home_B_green', -0.4, -0.5, 0.1, 0.8], ['fence_wood_straight', 1.0, 0.6, 0.15, 0.9], ['fence_wood_straight', -1.3, 0.9, -0.1, 0.9], ['crate_A_big', 0.9, -0.9, 0.2, 0.7], ['barrel', 1.4, 0.0, 0, 0.8], ['tree_single_A', -1.8, -1.1, 0, 0.7], ['resource_lumber', 0.2, 1.3, 0.3, 0.7]],
+  warren: [['hills_C_trees', 0, -0.4, 0, 0.9], ['hill_single_B', -1.5, 0.5, 0.2, 0.8], ['rock_single_D', 1.3, 0.8, 0, 0.9], ['skull', 0.4, 1.1, 0.4, 1.2], ['barrel', -0.6, 1.3, 0, 0.7], ['building_mine_red', 1.6, -1.2, -0.2, 0.6]],
+  saltreed: [['building_bridge_A', 0, 0, 0.17, 0.9], ['waterplant_A', -1.2, 0.8, 0, 1], ['waterplant_B', 1.3, 0.9, 0, 1], ['waterlily_A', -0.5, 1.4, 0, 1], ['post_lantern', 0.9, -0.9, 0, 0.9], ['rock_single_B', -1.5, -0.8, 0, 0.8]],
+  harrowmere: [['building_market_blue', 0, -0.3, 0, 0.85], ['building_watermill_blue', -1.6, 0.4, 0.15, 0.8], ['building_home_A_blue', 1.5, 0.5, -0.1, 0.8], ['building_tavern_yellow', -1.1, -1.7, 0.2, 0.7], ['building_home_B_red', 1.4, -1.5, 0.3, 0.7], ['building_bridge_A', 0.2, 1.5, 0, 0.7], ['flag_red', 0.6, -1.0, 0, 0.8]],
+  shrine: [['building_destroyed', 0, -0.3, 0, 0.9], ['pillar', -1.2, 0.6, 0, 0.9], ['pillar', 1.1, 0.7, 0, 0.8], ['shrine_candles', 0.2, 1.0, 0, 1], ['waterlily_A', -0.8, 1.5, 0, 1], ['rock_single_E', 1.6, -1.0, 0, 0.9]],
+  frostfang: [['mountain_A', 0, -0.6, 0, 0.8], ['mountain_C_grass_trees', -1.7, 0.4, 0.2, 0.6], ['rock_single_C', 1.2, 0.9, 0, 0.9], ['trees_B_small', 1.6, -0.6, 0, 0.8], ['post_lantern', -0.5, 1.2, 0, 0.8]],
+  lodge: [['building_lumbermill_blue', 0, -0.3, 0, 0.85], ['tent', -1.5, 0.7, 0.2, 0.7], ['resource_lumber', 1.3, 0.8, 0, 0.8], ['trees_A_medium', 1.7, -1.1, 0, 0.8], ['trees_B_small', -1.6, -1.2, 0, 0.8], ['barrel', 0.5, 1.2, 0, 0.7]],
+  ironjaw: [['building_castle_red', 0, -0.4, 0, 0.85], ['building_tower_catapult_red', -1.7, 0.6, 0.2, 0.7], ['building_barracks_red', 1.6, 0.5, -0.2, 0.7], ['flag_red', 0.7, 1.1, 0, 0.9], ['skull', -0.4, 1.3, 0, 1.2], ['mountain_B_grass', 2.0, -1.8, 0, 0.7]],
   abbey: [['building_church_blue', 0, 0, 0, 1.25], ['building_tower_A_blue', 1.6, -0.9, 0, 1.0], ['wall_straight', -1.7, 0.9, 0.25, 0.9], ['wall_straight', 1.7, 1.1, -0.25, 0.9], ['mountain_B_grass', -2.2, -2.2, 0, 0.8], ['lantern_standing', 0.6, 1.4, 0, 0.9]],
 };
-const REGION_FALLBACK = { village: 'thornwick', forest: 'whisperwood', marsh: 'greyfen', underground: 'crypt', abbey: 'abbey', ruins: 'watchtower', hills: 'hollow', crossroads: 'old-road' };
+const REGION_FALLBACK = { village: 'thornwick', forest: 'whisperwood', marsh: 'greyfen', underground: 'crypt', abbey: 'abbey', ruins: 'watchtower', hills: 'hollow', crossroads: 'old-road', farmland: 'bramble', caves: 'warren', lakeshore: 'saltreed', 'lake town': 'harrowmere', lake: 'shrine', mountains: 'frostfang', fortress: 'ironjaw' };
 export function dioramaFor(id, region) {
   return DIORAMAS[id] || DIORAMAS[REGION_FALLBACK[String(region || '').toLowerCase()]] || [['building_home_A_yellow', 0, 0, 0, 0.8], ['tree_single_A', 1.2, 0.6, 0, 0.7]];
 }
 export const isWatery = (id, region) => id === 'greyfen' || /marsh|swamp|lake|coast/i.test(region || '');
+export const isSnowy = (id, region) => /mountain|fortress|snow/i.test(region || '');

@@ -161,7 +161,47 @@
   new MutationObserver(() => { $('#advConn').textContent = $('#conn').textContent; }).observe($('#conn'), { childList: true, characterData: true, subtree: true });
 
   // ---------- scene & weather ----------
+  // Arrival card: the place's living painting full-screen with its name, like a loading screen.
+  let arrivedAt = null;
+  let arriveTimer = null;
+  function showArrival(A) {
+    const L = A.location;
+    const mood = A.ambience === 'clear' ? 'clear' : 'ash';
+    let card = $('#advArrive');
+    if (!card) {
+      card = el('div', 'arrive');
+      card.id = 'advArrive';
+      card.addEventListener('click', () => hideArrival());
+      $('#adventure').append(card);
+    }
+    const art = el('div', 'arrive-art');
+    if (L.image) { const img = el('img'); img.src = L.image; img.alt = ''; art.append(img); } else {
+      const sceneId = window.SCENES && window.SCENES[L.scene] ? L.scene : 'default';
+      if (window.SCENES) art.innerHTML = `<div class="scene-pan">${window.SCENES[sceneId](mood)}${window.SCENE_LIFE ? window.SCENE_LIFE(sceneId, mood) : ''}</div>`; // our own SVG
+    }
+    const text = el('div', 'arrive-text');
+    text.append(el('div', 'arrive-region', L.region || ''), el('h2', 'arrive-name', L.name), L.tagline ? el('div', 'arrive-tag', L.tagline) : '');
+    const danger = el('div', `arrive-danger d${L.danger || 0}`, dangerText(L.danger || 0));
+    text.append(danger);
+    if (A.combat) text.append(el('div', 'arrive-ambush', 'Ambush!'));
+    card.replaceChildren(art, text, el('div', 'arrive-skip', 'click to continue'));
+    card.hidden = false;
+    card.classList.remove('out');
+    void card.offsetWidth;
+    card.classList.add('in');
+    clearTimeout(arriveTimer);
+    arriveTimer = setTimeout(hideArrival, (A.combat ? 1500 : 2300) / (FX.speed || 1));
+  }
+  function hideArrival() {
+    const card = $('#advArrive');
+    if (!card || card.hidden || card.classList.contains('out')) return;
+    clearTimeout(arriveTimer);
+    card.classList.add('out');
+    setTimeout(() => { card.hidden = true; card.classList.remove('in', 'out'); card.replaceChildren(); }, 450);
+  }
+
   function renderScene(A) {
+    if (A.location.id !== arrivedAt) { arrivedAt = A.location.id; showArrival(A); }
     const mood = A.ambience === 'clear' ? 'clear' : 'ash';
     const key = `${A.location.id}:${mood}:${A.location.image || ''}`;
     if (key !== sceneKey) {
@@ -482,6 +522,10 @@
     return { title: A.scene.title, who: whoLine(mine), items };
   }
 
+  function dangerText(n) {
+    return n ? `Danger ${'★'.repeat(n)}${'☆'.repeat(Math.max(0, 4 - n))}` : 'Safe';
+  }
+
   function exploreCmd(A, mine) {
     const top = stack[stack.length - 1];
     if (top && top.type === 'travel') {
@@ -494,10 +538,20 @@
             icon: node ? node.icon : 'map',
             tag: x.ok ? (x.visited ? null : 'NEW') : 'LOCKED',
             tagCls: x.ok ? 'new' : 'lock',
-            sub: x.ok ? (node && node.region) || '' : x.locked,
+            sub: x.ok ? [(node && node.region) || '', dangerText(x.danger)].filter(Boolean).join(' · ') : x.locked,
             onClick: () => (x.ok ? (stack = [], TT.send({ t: 'adv:travel', to: x.to })) : TT.toast(x.locked, true)),
           });
         }),
+      };
+    }
+    if (top && top.type === 'coach') {
+      return {
+        title: `Coach · ${A.coachPrice} G`,
+        who: whoLine(mine),
+        items: A.coach.map((x) => mi(x.name, {
+          icon: 'map', tag: `${A.coachPrice} G`, sub: x.region, disabled: A.gold < A.coachPrice,
+          onClick: () => { stack = []; TT.send({ t: 'adv:do', kind: 'coach', to: x.to }); },
+        })),
       };
     }
     if (top && top.type === 'shop') {
@@ -529,6 +583,7 @@
     });
     if (A.shop && A.shop.length) items.push(mi('Shop', { icon: 'inn', tag: '▸', sub: A.shop.map((i) => i.name).join(', '), onClick: () => push({ type: 'shop' }) }));
     items.push(mi('Travel', { icon: 'map', tag: '▸', sub: `${A.exits.length} road${A.exits.length === 1 ? '' : 's'} from here`, onClick: () => push({ type: 'travel' }) }));
+    if (A.coach && A.coach.length) items.push(mi('Take the coach', { icon: 'map', tag: '▸', sub: `To ${A.coach.map((x) => x.name).join(', ')}`, onClick: () => push({ type: 'coach' }) }));
     const hurt = A.party.some((p) => p.hp < p.maxHp);
     if (potionsOf(A) && hurt) items.push(mi('Use a potion', { icon: 'potion', tag: '▸', onClick: () => push({ type: 'potion' }) }));
     return { title: 'What will you do?', who: whoLine(mine), items, keepCursor: true };
@@ -873,7 +928,9 @@
     const reachable = new Map(A.exits.map((x) => [x.to, x]));
     const NS = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(NS, 'svg');
-    svg.setAttribute('viewBox', '0 0 100 70');
+    const size = A.world.size || { w: 100, h: 70 };
+    board.style.aspectRatio = `${size.w} / ${size.h}`;
+    svg.setAttribute('viewBox', `0 0 ${size.w} ${size.h}`);
     svg.setAttribute('preserveAspectRatio', 'none');
     svg.classList.add('roads');
     for (const e of A.world.edges) {
@@ -891,11 +948,11 @@
     for (const n of A.world.nodes) {
       const exit = reachable.get(n.id);
       const canGo = exit && exit.ok && !A.combat;
-      const b = button([el('span', 'pin-medal'), el('span', 'pin-name', n.visited ? n.name : `${n.name}?`)], `pin${n.visited ? ' visited' : ' unknown'}${n.here ? ' here' : ''}${canGo ? ' go' : ''}${exit && !exit.ok ? ' locked' : ''}`, () => pick(n.id));
+      const b = button([el('span', 'pin-medal'), el('span', 'pin-name', n.visited ? n.name : `${n.name}?`)], `pin${n.visited ? ' visited' : ' unknown'}${n.here ? ' here' : ''}${canGo ? ' go' : ''}${exit && !exit.ok ? ' locked' : ''}${n.todo ? ' todo' : ''}`, () => pick(n.id));
       b.firstChild.append(icon(n.icon));
       if (n.here) b.append(el('span', 'pin-here', 'You are here'));
-      b.style.left = `${n.x}%`;
-      b.style.top = `${(n.y / 70) * 100}%`;
+      b.style.left = `${(n.x / size.w) * 100}%`;
+      b.style.top = `${(n.y / size.h) * 100}%`;
       pieces.push(b);
     }
     board.replaceChildren(...pieces);

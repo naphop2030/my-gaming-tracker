@@ -2,7 +2,7 @@
 // place you're fighting in (painted backdrop, scenery, flickering torches).
 // Everything follows the game's combat events: camera moves, melee dashes, spell effects,
 // hit-stop and knockback, status visuals (Zzz, stars, poison bubbles…), ash dissolves and a victory orbit.
-import { THREE, View, kitPiece, Actor, lights, Bursts, weatherPoints, dioramaFor, isWatery } from './core.js';
+import { THREE, View, kitPiece, Actor, lights, Bursts, weatherPoints, dioramaFor, isWatery, isSnowy } from './core.js';
 
 const HERO_X = -2.6;
 const FOE_X = 2.6;
@@ -104,7 +104,8 @@ export class Stage {
     this.torches = [];
     const arena = new THREE.Group();
     this.arena = arena;
-    const indoors = loc.id === 'crypt' || /underground/i.test(loc.region || '');
+    const indoors = loc.id === 'crypt' || /underground|caves/i.test(loc.region || '');
+    const snowy = isSnowy(loc.id, loc.region);
     const tmp = new THREE.Scene();
     lights(tmp, mood);
     for (const l of [...tmp.children]) {
@@ -134,8 +135,8 @@ export class Stage {
         t.position.set(x, -box.max.y - (Math.abs(x) > 6 ? 0.05 : 0), z);
         // Darker toward the edges so the fighters stand out in the middle.
         const edge = Math.min(1, Math.hypot(x / 7, (z + 0.6) / 4.5));
-        const base = new THREE.Color(indoors ? 0x6a6460 : mood !== 'clear' ? 0x9a927e : 0xb8b8a0).multiplyScalar(1 - edge * 0.35);
-        setTint(t, base);
+        const base = new THREE.Color(indoors ? 0x6a6460 : snowy ? 0xe8eef6 : mood !== 'clear' ? 0x9a927e : 0xb8b8a0).multiplyScalar(1 - edge * 0.35);
+        setTint(t, base, snowy);
         arena.add(t);
       }
     }
@@ -415,10 +416,11 @@ export class Stage {
       case 'defend': { const h = hero(fx.id); if (h) { h.play('block'); this.ring(chest(h), 0x9cc4ff, 1); } return; }
       case 'burst': {
         const m = foe(fx.id);
+        const col = fx.style === 'arcane' ? 0x6ad0c0 : fx.style === 'slam' ? 0xc8a070 : 0xff5a10;
         if (m) {
-          m.play('cast');
-          this.explosion(chest(m), 0xff5a10, 2.6);
-          for (const h of this.heroes.values()) if (!h.dead) setTimeout(() => this.impact(chest(h), 0xff7a2a, 1.2), 250);
+          m.play(fx.style === 'slam' ? 'attack' : 'cast');
+          if (fx.style === 'slam') { const g = m.group.position.clone().setY(0.1); this.ring(g, col, 3.5, true); this.ring(g, 0xffffff, 2.2, true); this.bursts.burst(g, { color: col, count: 80, speed: 4, up: 1.2, life: 1.1, size: 0.3 }); } else this.explosion(chest(m), col, 2.6);
+          for (const h of this.heroes.values()) if (!h.dead) setTimeout(() => this.impact(chest(h), col, 1.2), 250);
         }
         this.shake(0.6);
         this.zoom = Math.max(this.zoom, 0.8);
@@ -769,6 +771,11 @@ export class Stage {
   }
 }
 
-function setTint(obj, color) {
-  obj.traverse((o) => { if (o.isMesh) { o.material = o.material.clone(); o.material.color.multiply(new THREE.Color(color)); } });
+function setTint(obj, color, plain) {
+  obj.traverse((o) => {
+    if (!o.isMesh) return;
+    o.material = o.material.clone();
+    if (plain) { o.material.map = null; o.material.color = new THREE.Color(color); } // snow: no grass texture
+    else o.material.color.multiply(new THREE.Color(color));
+  });
 }
