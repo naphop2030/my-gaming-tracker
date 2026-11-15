@@ -391,3 +391,36 @@ test('difficulty scales monsters and defeat; the host can change it', () => {
   assert.strictEqual(room.adventure.location, 'thornwick');
   assert.strictEqual(room.adventure.gold, 40);
 });
+
+test('the yeti and the Cinder Wyrm', () => {
+  const room = newGame([['p1', 'Brakka', 'fighter'], ['p2', 'Wren', 'cleric']]);
+  for (const c of Object.values(room.adventure.party)) { c.maxHp = 2000; c.hp = 2000; }
+  const scene = (id) => act(room, 'p1', { t: 'adv:do', kind: 'scene', id });
+  // the Deep only opens after the bell rings
+  room.adventure.location = 'abbey';
+  assert.ok(!v(room, 'p1').actions.some((a) => a.id === 'deep-stair'));
+  room.adventure.flags['bell-rung'] = true;
+  scene('deep-stair');
+  choose(room, 'p1', 'Open the grate');
+  travel(room, 'p1', 'cinderdeep');
+  scene('wyrm-lair');
+  choose(room, 'p1', 'Fight');
+  assert.ok(v(room, 'p1').combat.monsters[0].boss);
+  fight(room);
+  assert.strictEqual(room.adventure.inventory['wyrm-scale'], 1);
+  assert.strictEqual(room.adventure.ended.title, 'Wyrmslayers');
+  // the ham thief
+  room.adventure.location = 'lodge';
+  room.adventure.flags['seen:brakka'] = true;
+  scene('brakka-again');
+  choose(room, 'p1', 'larder');
+  room.adventure.location = 'frostfang';
+  act(room, 'p1', { t: 'adv:choose', index: -1 });
+  scene('yeti-cave');
+  choose(room, 'p1', 'Fight');
+  fight(room);
+  room.adventure.location = 'lodge';
+  scene('brakka-again');
+  choose(room, 'p1', 'yeti');
+  assert.strictEqual(room.adventure.inventory['yeti-charm'], 1);
+});

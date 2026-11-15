@@ -115,6 +115,8 @@ export const CAST = {
   drowned: { model: 'ghost', height: 1.5, hover: 0.3, glow: 0x5a9ae0, anims: { idle: 'Flying_Idle', attack: 'Headbutt', cast: 'Punch', hit: 'HitReact', death: 'Death', walk: 'Fast_Flying', cheer: 'Yes' } },
   hag: { model: 'ghost', height: 2.5, hover: 0.35, tint: 0x8fe6b0, glow: 0x0a7a5a, anims: { idle: 'Flying_Idle', attack: 'Headbutt', cast: 'Punch', hit: 'HitReact', death: 'Death', walk: 'Fast_Flying', cheer: 'Yes' } },
   shaman: { model: 'tribal-spirit', height: 1.35, hover: 0.45, anims: { idle: 'Flying_Idle', attack: 'Headbutt', cast: 'Punch', hit: 'HitReact', death: 'Death', walk: 'Fast_Flying', cheer: 'Yes' } },
+  yeti: { model: 'yeti', height: 2.6, anims: { idle: 'Idle', attack: 'Weapon', cast: 'Punch', hit: 'HitReact', death: 'Death', walk: 'Walk', cheer: 'Yes' } },
+  wyrm: { model: 'dragon', height: 2.1, hover: 0.5, glow: 0xff3a00, anims: { idle: 'Flying_Idle', attack: 'Headbutt', cast: 'Punch', hit: 'HitReact', death: 'Death', walk: 'Fast_Flying', cheer: 'Yes' } },
   grukk: { model: 'orc-skull', height: 2.7, glow: 0x401000, anims: { idle: 'Idle', attack: 'Weapon', cast: 'Punch', hit: 'HitReact', death: 'Death', walk: 'Walk', cheer: 'Yes' } },
   direwolf: { model: 'wolf', height: 1.45, tint: 0x9a8a7a, anims: { idle: 'Idle', attack: 'Attack', hit: 'Idle_HitReact_Left', death: 'Death', walk: 'Walk', cheer: 'Idle_2' } },
   frostmane: { model: 'wolf', height: 1.95, tint: 0xf4f8ff, glow: 0x30506a, anims: { idle: 'Idle', attack: 'Attack', hit: 'Idle_HitReact_Left', death: 'Death', walk: 'Walk', cheer: 'Idle_2' } },
@@ -125,7 +127,9 @@ export const castFor = (kind) => CAST[kind] || CAST.bandit;
 // ---------- actors ----------
 export class Actor {
   static async create(kind, opts = {}) {
-    const spec = castFor(kind);
+    let spec = castFor(kind);
+    // Heroes can show their gear: `look.add` / `look.remove` swap which built-in parts are visible.
+    if (opts.look && spec.show) spec = { ...spec, show: spec.show.filter((n) => !(opts.look.remove || []).includes(n)).concat(opts.look.add || []) };
     const gltf = await loadModel(spec.model);
     const model = cloneSkinned(gltf.scene);
     // Show only this role's gear (KayKit models ship with every weapon attached).
@@ -153,6 +157,7 @@ export class Actor {
         const c = m.clone();
         if (spec.tint) c.color.multiply(new THREE.Color(spec.tint));
         if (spec.glow) { c.emissive = new THREE.Color(spec.glow); c.emissiveIntensity = 0.18; }
+        if (opts.look && opts.look.cape && /Cape$/.test(o.name)) c.color.multiply(new THREE.Color().setRGB(...opts.look.cape)); // each hero's own cape color
         mats.push(c);
         return c;
       });
@@ -508,7 +513,7 @@ export const DIORAMAS = {
   ironjaw: [['building_castle_red', 0, -0.4, 0, 0.85], ['building_tower_catapult_red', -1.7, 0.6, 0.2, 0.7], ['building_barracks_red', 1.6, 0.5, -0.2, 0.7], ['flag_red', 0.7, 1.1, 0, 0.9], ['skull', -0.4, 1.3, 0, 1.2], ['mountain_B_grass', 2.0, -1.8, 0, 0.7]],
   abbey: [['building_church_blue', 0, 0, 0, 1.25], ['building_tower_A_blue', 1.6, -0.9, 0, 1.0], ['wall_straight', -1.7, 0.9, 0.25, 0.9], ['wall_straight', 1.7, 1.1, -0.25, 0.9], ['mountain_B_grass', -2.2, -2.2, 0, 0.8], ['lantern_standing', 0.6, 1.4, 0, 0.9]],
 };
-const REGION_FALLBACK = { village: 'thornwick', forest: 'whisperwood', marsh: 'greyfen', underground: 'crypt', abbey: 'abbey', ruins: 'watchtower', hills: 'hollow', crossroads: 'old-road', farmland: 'bramble', caves: 'warren', lakeshore: 'saltreed', 'lake town': 'harrowmere', lake: 'shrine', mountains: 'frostfang', fortress: 'ironjaw' };
+const REGION_FALLBACK = { deep: 'crypt', village: 'thornwick', forest: 'whisperwood', marsh: 'greyfen', underground: 'crypt', abbey: 'abbey', ruins: 'watchtower', hills: 'hollow', crossroads: 'old-road', farmland: 'bramble', caves: 'warren', lakeshore: 'saltreed', 'lake town': 'harrowmere', lake: 'shrine', mountains: 'frostfang', fortress: 'ironjaw' };
 export function dioramaFor(id, region) {
   return DIORAMAS[id] || DIORAMAS[REGION_FALLBACK[String(region || '').toLowerCase()]] || [['building_home_A_yellow', 0, 0, 0, 0.8], ['tree_single_A', 1.2, 0.6, 0, 0.7]];
 }

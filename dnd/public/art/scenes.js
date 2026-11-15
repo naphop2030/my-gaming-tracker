@@ -33,6 +33,7 @@
     'sc-fen': { ash: { far: '#5a6058', mid: '#3c443c', water: '#46504a', bottom: '#8a8a70', glow: '#c8d890', fog: '#a8b098' }, clear: { far: '#58808a', water: '#4d7a88', bottom: '#b8d4c8', fog: '#d0e4e4' } },
     'sc-tower': { ash: { bottom: '#a8604a', glow: '#ff8a50', far: '#6e4c40', mid: '#4b342c' }, clear: { bottom: '#f0a070', glow: '#ffd090' } },
     'sc-hollow': { ash: { bottom: '#a08a60', far: '#6e6448', mid: '#4a4632', near: '#2c2a1e' }, clear: { bottom: '#e8d090', far: '#6a7a60', mid: '#45503e' } },
+    'sc-deep': { ash: { glow: '#ff6a20', light: '#ffb050', fog: '#a04020' }, clear: { glow: '#ff6a20', light: '#ffb050', fog: '#a04020', top: '#2e2622', bottom: '#9a7356' } },
     'sc-harrow': { ash: { water: '#4e4e4a', bottom: '#a08870' }, clear: { water: '#4d7090', bottom: '#f0c8a0' } },
     'sc-shrine': { ash: { water: '#3e4a48', bottom: '#7a8a7a', glow: '#a8d8c0', far: '#4e5a58', mid: '#2e3836', near: '#1e2624' }, clear: { water: '#3e6878', bottom: '#a8d0d0', glow: '#d0fff0' } },
     'sc-frost': { ash: { top: '#3a3a44', bottom: '#b0a8a4', far: '#8a8e98', mid: '#5e626e', near: '#363944', glow: '#e8d0b0', fog: '#d8dce4' }, clear: { top: '#2a4a7a', bottom: '#e0eaf8', far: '#9aaccc', mid: '#5a6e8c', near: '#2e3a4e', fog: '#e8f0f8' } },
@@ -512,6 +513,29 @@
       s += fog('sc-iron', 520, p.fog, 0.2);
       return s;
     }),
+
+    cinderdeep: (mood) => wrap('sc-deep', mood, () => {
+      const r = rng(181);
+      const rock = '#1a0f0c';
+      const dark = '#0c0605';
+      let s = `<rect width="${W}" height="${H}" fill="#2a0e08"/>`;
+      s += `<ellipse cx="800" cy="520" rx="900" ry="260" fill="url(#sc-deep-glow)"/>`;
+      // far cavern wall and hanging stone
+      s += ridge(r, 250, 40, 50, '#3a1810', { wave: 180, step: 30 });
+      for (let i = 0; i < 16; i++) { const x = r() * W; const h = 60 + r() * 170; const w = 20 + r() * 40; s += `<path d="M${f(x - w)} 0 L${f(x)} ${f(h)} L${f(x + w)} 0 Z" fill="${i % 2 ? rock : '#24120d'}"/>`; }
+      // rivers of fire
+      s += `<path d="M0 470 Q 300 430 520 470 T 1000 450 T 1600 480 L1600 520 Q 1200 500 1000 500 T 520 520 T 0 520 Z" fill="#ff7a1a"/>`;
+      s += `<path d="M0 480 Q 300 445 520 482 T 1000 462 T 1600 492" stroke="#ffd070" stroke-width="5" fill="none" opacity=".8"/>`;
+      s += `<ellipse cx="800" cy="490" rx="760" ry="60" fill="#ff5a10" opacity=".35" filter="url(#sc-deep-blur)"/>`;
+      // pillars of black glass
+      for (const [x, w, top] of [[180, 90, 60], [430, 60, 150], [1180, 70, 120], [1420, 100, 40]]) s += `<path d="M${x - w} ${H} L${x - w * 0.55} ${top + 40} L${x - w * 0.2} ${top} L${x + w * 0.3} ${top + 30} L${x + w * 0.6} ${top + 90} L${x + w} ${H} Z" fill="${rock}"/><path d="M${x - w * 0.2} ${top} L${x + w * 0.3} ${top + 30} L${x + w * 0.1} ${H} L${x - w * 0.1} ${H} Z" fill="#3a1c14" opacity=".6"/>`;
+      // the island, and the sleeping wyrm's silhouette
+      s += `<path d="M520 470 Q 800 400 1080 470 Q 800 500 520 470 Z" fill="${dark}"/>`;
+      s += `<g fill="${dark}"><path d="M600 452 Q 700 360 820 400 Q 900 350 960 410 Q 1010 430 1000 458 Z"/><path d="M700 400 L650 300 L760 372 Z"/><path d="M780 388 L800 280 L850 378 Z"/><path d="M960 412 q 60 -30 90 10 q -30 -6 -50 14 Z"/></g>`;
+      s += `<circle cx="1012" cy="418" r="5" fill="#ffd070"/>` + lamp('sc-deep', 1012, 418, 40);
+      s += `<path d="M0 ${H} L0 548 Q 800 520 1600 552 L1600 ${H} Z" fill="${dark}"/>`;
+      return s;
+    }),
   };
 
   // Generic hills for places without their own picture.
@@ -542,6 +566,7 @@
     frostfang: { clouds: 4, snow: 60, crows: false, birds: 1 },
     lodge: { clouds: 2, snow: 40, smoke: [[1037, 245]], flicker: true },
     ironjaw: { clouds: 2, crows: true, flicker: true, embers: [800, 140], smoke: [[520, 110], [1080, 110]], snow: 25 },
+    cinderdeep: { flicker: true, embers: [800, 480], pulse: [800, 480, 300], shimmer: 14, shimmerY: 462, motes: 14 },
     default: { clouds: 3, birds: 2 },
   };
 

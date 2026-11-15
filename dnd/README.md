@@ -15,10 +15,12 @@ Start **Play an adventure** and the game runs the story for you. Everyone (inclu
 - **Resting:** rest at the inn to fully heal and get spells back. Camping in the wild heals half your HP, but something might find you. If the whole party falls, you wake up back in town with half your gold. The adventure doesn't end.
 - **One screen works too:** add everyone with **+ Player on this device**. In combat the screen switches to whoever's turn it is.
 
-The included adventure is **The Ashen Vale**: 16 places across two regions, a main quest, 7 side quests, 4 bosses and 17 kinds of monsters. It takes roughly 4–6 hours and suits 2–4 heroes. Solo players can run two or three heroes from one screen.
+The included adventure is **The Ashen Vale**: 17 places across two regions, a main quest, 9 side quests, 6 bosses and 19 kinds of monsters. It takes roughly 4–6 hours and suits 2–4 heroes. Solo players can run two or three heroes from one screen.
 
 - **The Vale** (levels 1–3): the village of Thornwick, the Old Road, Whisperwood, Hermit's Hollow, the Redcap Watchtower, Greyfen Marsh, the Sunken Crypt and Saint Aldric's Abbey, where the main quest ends.
 - **Beyond the Vale** (levels 2–5): goblins raiding Bramblefields from their warren, the Saltreed Causeway, the lake town of **Harrowmere** (a second town with an inn, a shop and a dwarven forge selling the best gear), the Mere Hag in the Drowned Shrine, snowy Frostfang Pass with the white wolf Frostmane, the rangers of Stonewatch Lodge, and Warlord Grukk's orcs in Ironjaw Hold.
+- **After the bell:** a stair behind the abbey altar leads down to the **Cinder Deep**, where the Cinder Wyrm sleeps: a dragon superboss for level 5 heroes. In the mountains, a yeti is raiding the lodge's smokehouse.
+- **Heroes show their gear** in battle: a fighter with a better weapon carries a greatsword and with armour a tower shield, a wizard an open spellbook, a rogue a crossbow, a cleric a greataxe. Each hero's cape has its own colour so two heroes of the same class are easy to tell apart.
 - **Getting around:** each place shows a **danger rating** (☆ to ★★★★) in the travel menu and on its arrival card. Places with something new to do get a **"!"** on the map. Thornwick, Harrowmere and Stonewatch Lodge are **coach stops**: once you've visited them, the coach takes you between them for a few gold.
 - **Arrival cards:** when you reach a place, its moving painting fills the screen with its name, a line about it and its danger rating, like a loading screen. Click to skip.
 - **Difficulty:** pick Story, Normal or Hard on the title screen before starting. Story has gentler fights and costs no gold on defeat; Hard has tougher monsters and 20% more XP. The host can change it any time between fights in Settings.

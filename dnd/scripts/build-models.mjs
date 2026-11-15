@@ -63,6 +63,8 @@ const CHARACTERS = {
   tribal: { file: 'Tribal', dir: 'Big', keep: ['Idle', 'Weapon', 'Punch', 'HitReact', 'Death', 'Walk', 'Yes'] },
   'tribal-spirit': { file: 'Tribal', dir: 'Flying', keep: ['Flying_Idle', 'Headbutt', 'Punch', 'HitReact', 'Death', 'Fast_Flying', 'Yes'] },
   'orc-skull': { file: 'Orc_Skull', dir: 'Big', keep: ['Idle', 'Weapon', 'Punch', 'HitReact', 'Death', 'Walk', 'Yes'] },
+  yeti: { file: 'Yeti', dir: 'Big', keep: ['Idle', 'Weapon', 'Punch', 'HitReact', 'Death', 'Walk', 'Yes'] },
+  dragon: { file: 'Dragon', dir: 'Flying', keep: ['Flying_Idle', 'Headbutt', 'Punch', 'HitReact', 'Death', 'Fast_Flying', 'Yes'] },
   ghost: { file: 'Ghost', dir: 'Flying', keep: ['Flying_Idle', 'Headbutt', 'Punch', 'HitReact', 'Death', 'Fast_Flying', 'Yes'] },
 };
 

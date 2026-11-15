@@ -62,6 +62,8 @@ module.exports = {
     'runed-blade': { name: 'Runed blade', slot: 'weapon', atk: 2, dmg: 2, desc: '+2 to hit, +2 damage. Harrowmere dwarf-work.', icon: 'attack' },
     'mithril-shirt': { name: 'Mithril shirt', slot: 'armor', ac: 3, desc: '+3 AC. Light as linen, hard as a mountain.', icon: 'defend' },
     'focus-orb': { name: 'Moonstone orb', slot: 'weapon', spell: 2, desc: '+2 to spell attacks and spell save DCs.', classes: ['wizard', 'cleric'], icon: 'magic-missile' },
+    'yeti-charm': { name: 'Yeti-tooth charm', slot: 'trinket', hp: 8, dmg: 1, desc: '+8 max HP and +1 damage. Still cold.', icon: 'level' },
+    'wyrm-scale': { name: 'Wyrmscale mail', slot: 'armor', ac: 3, hp: 10, desc: '+3 AC and +10 max HP. Forged from the Cinder Wyrm\'s shed scales.', icon: 'defend' },
     'ranger-map': { name: 'Ranger\'s map', desc: 'Hand-drawn trails through Frostfang Pass, with a skull marked high on the cliffs: Ironjaw Hold.' },
   },
 
@@ -96,6 +98,14 @@ module.exports = {
     frostmane: {
       name: 'Frostmane', lore: 'The white wolf of Frostfang Pass, big as a horse. The trappers call it the mountain\'s teeth.', hp: 45, ac: 14, atk: 6, dmg: '2d6+3', xp: 350, init: 3, save: 4, verb: 'mauls', type: 'beast', pack: true,
       summon: { at: 0.5, key: 'direwolf', text: 'howls for its pack!' },
+    },
+    yeti: {
+      name: 'The Frostfang Yeti', lore: 'Older than the lodge, older than the road. It only wants to be left alone, and for people to stop leaving such delicious smoked hams about.', hp: 60, ac: 13, atk: 6, dmg: '2d8+3', xp: 450, init: 0, save: 4, verb: 'pounds', type: 'beast', gold: '3d6',
+      burst: { every: 3, name: 'Avalanche Roar', dmg: '2d8', dc: 13, ability: 'con', style: 'slam', warn: 'fills its enormous chest with air…' },
+    },
+    wyrm: {
+      name: 'The Cinder Wyrm', lore: 'The old fire under the hill, kept asleep for two hundred years by the tolling of the bell. It is young, as wyrms go. It is also awake.', hp: 120, ac: 16, atk: 8, dmg: '2d10+4', xp: 1500, init: 2, save: 6, verb: 'snaps at', type: 'dragon', style: 'fire', gold: '10d10',
+      burst: { every: 3, name: 'Cinder Breath', dmg: '4d6', dc: 15, ability: 'dex', style: 'fire', warn: 'rears back, fire glowing in its throat…' },
     },
     orc: { name: 'Ironjaw Orc', lore: 'Raiders of the Ironjaw warband, hardened by mountain winters and endless feuds.', hp: 22, ac: 13, atk: 5, dmg: '1d12+3', xp: 100, init: 1, save: 3, verb: 'hacks at', type: 'humanoid', gold: '2d6', drop: { item: 'greater-potion', chance: 0.15 } },
     shaman: { name: 'Orc Shaman', lore: 'Orc fire-speakers who read the future in burning bones and throw the rest at enemies.', hp: 16, ac: 12, atk: 5, dmg: '2d6+1', xp: 100, init: 1, save: 3, verb: 'hurls a firebolt at', type: 'humanoid', style: 'fire', gold: '2d6', drop: { item: 'elixir', chance: 0.3 } },
@@ -188,10 +198,20 @@ module.exports = {
     abbey: {
       name: 'Saint Aldric\'s Abbey', region: 'Abbey', x: 55, y: 8, effect: 'embers', danger: 3, tagline: 'The bell is silent',
       desc: 'The abbey courtyard lies knee-deep in ash. Above it looms the bell tower, its great bronze bell hanging silent. Somewhere inside, voices chant in a language that crackles like fire.',
-      descIf: [{ when: 'bell-rung', text: 'Clean wind blows through the courtyard now. The Cinder Bell hums faintly, even at rest.' }],
+      descIf: [{ when: 'bell-rung', text: 'Clean wind blows through the courtyard now. The Cinder Bell hums faintly, even at rest. But warm air still rises from a stair behind the altar that leads down, and down, under the hill.' }],
       actions: [
         { label: 'Cross the courtyard', scene: 'courtyard', when: '!courtyard-clear' },
         { label: 'Climb the bell tower', scene: 'tower', when: ['courtyard-clear', '!bell-rung'] },
+        { label: 'Examine the stair behind the altar', scene: 'deep-stair', when: ['bell-rung', '!deep-open'] },
+      ],
+    },
+
+    cinderdeep: {
+      name: 'The Cinder Deep', region: 'Deep', x: 62, y: 22, effect: 'embers', danger: 4, tagline: 'The fire under the hill', scene: 'cinderdeep', icon: 'priest',
+      desc: 'A cavern as big as a cathedral, lit red from below. Rivers of slow fire wind between pillars of black glass. The bell\'s deep note still echoes down here, and something vast shifts in its sleep each time it sounds.',
+      descIf: [{ when: 'wyrm-done', text: 'The fires have dimmed to embers. The great cavern is quiet, and cooling.' }],
+      actions: [
+        { label: 'Walk out across the black glass', scene: 'wyrm-lair', when: '!wyrm-done' },
       ],
     },
 
@@ -255,6 +275,7 @@ module.exports = {
       actions: [
         { label: 'Climb to the frozen waterfall', scene: 'waterfall', when: '!seen:waterfall' },
         { label: 'Track the white wolf', scene: 'frostmane-track', when: ['q-frostmane', '!frostmane-done'] },
+        { label: 'Follow the trail of stolen hams', scene: 'yeti-cave', when: ['q-yeti', '!yeti-done'] },
       ],
     },
     lodge: {
@@ -289,6 +310,7 @@ module.exports = {
     { a: 'hollow', b: 'watchtower', when: 'hermit-trail', hidden: true },
     { a: 'greyfen', b: 'crypt', when: 'crypt-found', hidden: true },
     { a: 'crypt', b: 'abbey', when: 'undercroft-open', hidden: true },
+    { a: 'abbey', b: 'cinderdeep', when: 'deep-open', hidden: true },
     // beyond the Vale
     { a: 'thornwick', b: 'bramble' },
     { a: 'bramble', b: 'warren', when: 'warren-found', hidden: true },
@@ -939,7 +961,37 @@ module.exports = {
         { label: 'Ask the way to Ironjaw Hold', when: '!ironjaw-route', text: '"Here." She hands you a hand-drawn map. "Go kill an orc."', give: { 'ranger-map': 1 }, set: 'ironjaw-route', scene: 'brakka-again' },
         { label: 'Ask if the rangers need help', when: '!q-frostmane', text: 'She tells you about Frostmane, the white wolf.', scene: 'brakka' },
         { label: 'Bring her Frostmane\'s pelt', when: ['frostmane-done', '!frostmane-paid'], text: 'Brakka whistles low. Three days later she hands you a cloak of thick white fur, lined with leather. "Wear it with pride. The whole mountain will know what you did."', give: { 'frost-cloak': 1 }, xp: 200, set: 'frostmane-paid', scene: 'brakka-again', quest: { id: 'frostmane', done: true, text: 'Frostmane is dead, and you wear its pelt as a cloak.' } },
+        { label: 'Ask why the larder is empty', when: ['!q-yeti'], text: '"Something big keeps raiding our smokehouse. Takes the hams, leaves the door on the roof. Tracks like a man\'s, if the man was twelve feet tall. Sort it out and you can have what it\'s been hoarding."', set: 'q-yeti', scene: 'brakka-again', quest: { id: 'yeti', title: 'The Ham Thief', text: 'Something huge is raiding Stonewatch Lodge\'s smokehouse. Follow the trail of stolen hams in Frostfang Pass.' } },
+        { label: 'Tell her about the yeti', when: ['yeti-done', '!yeti-paid'], text: 'Brakka laughs until she has to sit down. "A yeti. Stealing ham." She wipes her eyes and tosses you a charm on a cord. "Found this in its cave years back. Yours now."', give: { 'yeti-charm': 1 }, xp: 200, set: 'yeti-paid', scene: 'brakka-again', quest: { id: 'yeti', done: true, text: 'The Frostfang Yeti won\'t be raiding the lodge again.' } },
         { label: 'Listen to the rangers\' stories', text: 'The rangers tell of avalanches, ice trolls and a dwarf king\'s lost gold. Some of it might even be true.' },
+      ],
+    },
+
+    'yeti-cave': {
+      title: 'The ham trail',
+      text: 'Ham bones lead up to an ice cave. Inside, on a nest of stolen blankets, sits a mountain of white fur gnawing a ham the size of a dog. It looks up. It does not look pleased to have company.',
+      choices: [
+        { label: 'Fight!', combat: ['yeti'], flee: false, win: { text: 'The yeti crashes down and the whole cave shakes. Among its hoard: a lot of bones, and a purse some unlucky trapper no longer needs.', gold: 60, give: { 'greater-potion': 2 }, set: 'yeti-done', quest: { id: 'yeti', text: 'The yeti is beaten. Tell Ranger Brakka at Stonewatch Lodge.' } } },
+        { label: 'Offer it your rations and back away slowly', check: { skill: 'nature', dc: 14 }, success: { text: '{name} sets down a week of rations and keeps very still. The yeti sniffs, considers, and pushes a pile of old trinkets toward you with one enormous foot. A trade. It won\'t need the lodge\'s hams now.', gold: 60, xp: 450, give: { 'greater-potion': 2 }, set: 'yeti-done', quest: { id: 'yeti', text: 'You made peace with the yeti. Tell Ranger Brakka at Stonewatch Lodge.' } }, failure: { text: 'The yeti decides you are also food.', combat: ['yeti'], flee: false, win: { text: 'The yeti crashes down and the whole cave shakes.', gold: 60, set: 'yeti-done', quest: { id: 'yeti', text: 'The yeti is beaten. Tell Ranger Brakka at Stonewatch Lodge.' } } } },
+      ],
+      noLeave: true,
+    },
+
+    // ---------------- The Cinder Deep ----------------
+    'deep-stair': {
+      title: 'The stair behind the altar',
+      text: 'Behind the abbey\'s altar a stair spirals down into the hill. The monks sealed it with an iron grate two hundred years ago. The grate is warm to the touch, and the Cinder Priest\'s people have already cut the lock.',
+      choices: [
+        { label: 'Open the grate', text: 'The hinges scream. Hot air rolls up the stair, smelling of sulphur. Far, far below, something breathes. The bell put it back to sleep, but it will not stay asleep forever. This is a fight for heroes at the height of their strength.', set: 'deep-open', quest: { id: 'wyrm', title: 'The Fire Under the Hill', text: 'A stair behind the abbey altar leads down to the Cinder Deep, where the Wyrm sleeps. End it for good, if you dare. (For level 5 heroes.)' } },
+        { label: 'Leave it shut', text: 'Some doors are better left closed. For now.' },
+      ],
+    },
+    'wyrm-lair': {
+      title: 'The Cinder Wyrm',
+      text: 'On an island of black glass in a lake of fire lies the Wyrm: red-gold, coiled, wings folded, each breath a furnace blast. As you step onto the glass, one great eye opens. "The bell-ringers," it says, in a voice like a landslide. "I was having such a pleasant dream. You were all on fire."',
+      choices: [
+        { label: 'Fight!', combat: ['wyrm'], flee: false, win: { text: 'The Cinder Wyrm gives one last roar that shakes dust from the cavern roof, and falls. The rivers of fire dim to a sullen glow.', give: { 'wyrm-scale': 1 }, gold: 200, set: 'wyrm-done', quest: { id: 'wyrm', done: true, text: 'The Cinder Wyrm is slain. The fire under the hill is out.' }, end: { title: 'Wyrmslayers', text: 'The fire under the hill has gone out, for the first time since the world was young. The Cinder Bell can ring for joy now, not for fear.\n\nBards will sing of this for a thousand years. They will get your names wrong, but the dragon will get bigger every time.' } } },
+        { label: 'Turn back while you still can', text: 'The great eye watches you go. "Wise," it rumbles, and closes.' },
       ],
     },
 

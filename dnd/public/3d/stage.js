@@ -104,7 +104,7 @@ export class Stage {
     this.torches = [];
     const arena = new THREE.Group();
     this.arena = arena;
-    const indoors = loc.id === 'crypt' || /underground|caves/i.test(loc.region || '');
+    const indoors = loc.id === 'crypt' || /underground|caves|deep/i.test(loc.region || '');
     const snowy = isSnowy(loc.id, loc.region);
     const tmp = new THREE.Scene();
     lights(tmp, mood);
@@ -130,7 +130,7 @@ export class Stage {
       stone: [0x77726c, 0x66615c, 0x807a72], planks: [0x7a5a3c, 0x6a4c32, 0x86643f], mud: [0x6a5a42, 0x5c4e38, 0x74644a],
       cave: [0x4e443a, 0x443a32, 0x584c40], snow: [0xe8eef6, 0xdde5f0, 0xf2f6fb],
     };
-    const ground = snowy ? 'snow' : /underground|abbey|fortress|ruins/.test(region) || loc.id === 'shrine' ? 'stone' : /caves/.test(region) ? 'cave'
+    const ground = snowy ? 'snow' : /underground|abbey|fortress|ruins|deep/.test(region) || loc.id === 'shrine' ? 'stone' : /caves/.test(region) ? 'cave'
       : /lake town/.test(region) ? 'planks' : watery ? 'mud' : 'grass';
     const tile = await kitPiece('hex_grass');
     const waterTile = watery ? makeWatery(await kitPiece('hex_water')) : null;
@@ -272,8 +272,8 @@ export class Stage {
     s.visible = hp > 0;
   }
 
-  async addActor(kind, pos, facing, id, isFoe) {
-    const a = await Actor.create(kind);
+  async addActor(kind, pos, facing, id, isFoe, look) {
+    const a = await Actor.create(kind, { look });
     a.group.position.copy(pos);
     a.home = pos.clone();
     a.group.rotation.y = facing;
@@ -315,7 +315,7 @@ export class Stage {
       this.floaters = [];
       this.orbit = null;
       const heroes = A.party;
-      await Promise.all(heroes.map((h, i) => this.addActor(h.cls, new THREE.Vector3(HERO_X - (i % 2) * 0.8, 0, (i - (heroes.length - 1) / 2) * 1.3 - 0.6), Math.PI / 2, h.id, false)));
+      await Promise.all(heroes.map((h, i) => this.addActor(h.cls, new THREE.Vector3(HERO_X - (i % 2) * 0.8, 0, (i - (heroes.length - 1) / 2) * 1.3 - 0.6), Math.PI / 2, h.id, false, heroLook(h, i))));
       const foes = A.combat.monsters;
       await Promise.all(foes.map((m, i) => this.addActor(m.key, new THREE.Vector3(FOE_X + (i % 2) * 0.8 + (m.boss ? 0.6 : 0), 0, (i - (foes.length - 1) / 2) * 1.45 - 0.6), -Math.PI / 2, m.id, true)));
       // Intro: a sweeping shot onto the battlefield (closer on a boss).
@@ -784,6 +784,24 @@ export class Stage {
     this.camera.position.copy(pos);
     this.camera.lookAt(this.look);
   }
+}
+
+// What a hero looks like in battle: gear shows on the model, and every hero has their own cape color.
+const CAPES = [null, [0.45, 0.7, 1.7], [0.5, 1.5, 0.6], [1.3, 0.55, 1.6], [1.7, 1.4, 0.4]];
+function heroLook(h, i) {
+  const g = h.gear || {};
+  const look = { add: [], remove: [], cape: CAPES[i % CAPES.length] };
+  if (h.cls === 'fighter') {
+    if (g.weapon) { look.remove.push('1H_Sword'); look.add.push('2H_Sword'); }
+    if (g.armor) { look.remove.push('Round_Shield'); look.add.push('Rectangle_Shield'); }
+  } else if (h.cls === 'wizard') {
+    if (g.weapon) look.add.push('Spellbook_open');
+  } else if (h.cls === 'rogue') {
+    if (g.weapon) { look.remove.push('Knife_Offhand'); look.add.push('1H_Crossbow'); }
+  } else if (h.cls === 'cleric') {
+    if (g.weapon) { look.remove.push('1H_Axe'); look.add.push('2H_Axe'); }
+  }
+  return look;
 }
 
 function setTint(obj, color, plain) {
