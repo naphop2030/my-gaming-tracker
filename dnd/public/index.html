@@ -21,6 +21,10 @@
     <label class="field name-field">Your name
       <input id="lobbyName" maxlength="30" placeholder="e.g. Mira the Bold" autocomplete="nickname">
     </label>
+    <div class="lang-pick" id="langPick" role="group" aria-label="Language">
+      <button type="button" data-lang="en">English</button>
+      <button type="button" data-lang="th">ไทย</button>
+    </div>
     <div class="diff-pick" id="diffPick" role="radiogroup" aria-label="Difficulty for new adventures">
       <span class="diff-label">Difficulty</span>
       <button type="button" data-diff="story" role="radio">Story</button>
@@ -293,6 +297,9 @@
 </div>
 
 <div id="toast" class="toast" role="status"></div>
+<script src="i18n/th-ui.js"></script>
+<script src="i18n/th-ashen-vale.js"></script>
+<script src="i18n.js"></script>
 <script src="art/scenes.js"></script>
 <script src="fx.js"></script>
 <script src="menu.js"></script>

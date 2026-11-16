@@ -1152,6 +1152,7 @@
     rows.push(toggle('Fast battle effects', FX.speed >= 2, (v) => FX.setSpeed(v ? 2 : 1), 'Plays dice, hits and banners twice as fast.'));
     rows.push(toggle('Auto-switch players in battle', TT.followTurns, (v) => TT.setFollowTurns(v), 'When several players share this screen.'));
     rows.push(toggle('Calm mode', calm(), (v) => { store.set('dnd.calm', v ? '1' : '0'); applyLook(); }, 'Less motion: no screen shake, still pictures and fewer moving effects.'));
+    if (window.I18N) rows.push(choiceRow('Language', [['en', 'English'], ['th', 'ไทย']], window.I18N.lang, (v) => window.I18N.set(v), 'Thai translation of the whole game.'));
     rows.push(choiceRow('Text size', [['1', 'Normal'], ['1.15', 'Large'], ['1.3', 'Larger']], store.get('dnd.textSize') || '1', (v) => { store.set('dnd.textSize', v); applyLook(); }, 'For the story, menus and item descriptions.'));
     const A = TT.S && TT.S.adventure;
     if (A && A.difficulties) {

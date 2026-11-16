@@ -25,7 +25,7 @@
   --radius: 10px;
   --parch: #eadbb9; --parch2: #dcc79c; --ink: #2b2014; --ink-soft: #5b4630;
   --serif: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
-  --sans: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, system-ui, sans-serif;
+  --sans: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, system-ui, "Leelawadee UI", "Noto Sans Thai", Tahoma, sans-serif;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
@@ -892,3 +892,12 @@ select option { background: #141f63; }
 @keyframes dieWobble { 0%, 100% { transform: rotate(-8deg) translateY(0); } 50% { transform: rotate(8deg) translateY(-6px); } }
 @media (prefers-reduced-motion: reduce) { .dice-tray-die { animation: none; } }
 .calm .dice-tray-die { animation: none; }
+
+/* ---------- language toggle ---------- */
+.lang-pick { display: flex; justify-content: flex-end; gap: 4px; margin: -4px 0 6px; }
+.lang-pick button { background: rgba(0, 0, 40, .35); border: 1px solid rgba(220, 228, 255, .45); color: var(--muted); border-radius: 999px; padding: 3px 11px; font-weight: 700; font-size: 12.5px; cursor: pointer; }
+.lang-pick button.on { background: linear-gradient(180deg, #ffd36a, #e0a83a); color: #2a1a00; border-color: #ffd36a; text-shadow: none; }
+/* Thai script sits taller: give it a little more line height, and drop the wide letter-spacing used on English labels. */
+.lang-th body { line-height: 1.6; }
+/* Wide letter-spacing on English labels pulls Thai characters apart. */
+.lang-th *:not(input) { letter-spacing: normal !important; }

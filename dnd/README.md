@@ -26,6 +26,8 @@ The included adventure is **The Ashen Vale**: 17 places across two regions, a ma
 - **Difficulty:** pick Story, Normal or Hard on the title screen before starting. Story has gentler fights and costs no gold on defeat; Hard has tougher monsters and 20% more XP. The host can change it any time between fights in Settings.
 - **Bestiary:** a Menu page that records every creature you meet, Pokédex-style, with its lore, how many you've defeated and tips on beating it (what it's weak to, what to watch out for). It also shows your party's records: battles won, critical hits, damage dealt, gold earned and more. The records also appear when you reach an ending.
 - **Comfort settings:** text size (Normal, Large, Larger) and Calm mode (no screen shake, still pictures) in Settings.
+- **Thai language (ภาษาไทย):** switch between English and Thai with the toggle on the title screen or in Settings. Everything is translated: menus, battle messages and the whole story. Each player chooses their own language, so friends in the same game can play in different languages. The story translation lives in `i18n-src/th-content-*.txt` and is built into `public/i18n/` with `node scripts/build-thai.js`; screen text and game messages are in `public/i18n/th-ui.js`.
+- **Roll your own dice:** for skill checks and attacks, a big d20 appears and waits for you to click it (or press Enter). The host can roll for a player who stepped away, or turn it off in Settings so the game rolls for everyone.
 
 ### What's in a hero's journey
 

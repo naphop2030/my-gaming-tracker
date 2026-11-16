@@ -84,6 +84,14 @@
   }
   $('#createBtn').onclick = () => createGame({ mode: 'tabletop' });
 
+  // Language toggle on the title screen (also in the in-game Settings).
+  function paintLang() {
+    for (const b of document.querySelectorAll('#langPick button')) { const on = window.I18N && window.I18N.lang === b.dataset.lang; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); }
+  }
+  for (const b of document.querySelectorAll('#langPick button')) b.setAttribute('data-no-translate', ''), b.onclick = () => { if (window.I18N) window.I18N.set(b.dataset.lang); paintLang(); };
+  window.addEventListener('langchange', paintLang);
+  paintLang();
+
   // Difficulty for new adventures (the host can change it later in Settings).
   const DIFF_HELP = { story: 'Story: gentler fights and no gold lost on defeat.', normal: 'Normal: the adventure as designed.', hard: 'Hard: tougher monsters that hit harder, and 20% more XP.' };
   function paintDiff() {
