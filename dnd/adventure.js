@@ -120,7 +120,7 @@ function create(id, opts = {}) {
   const A = ADVENTURES[id];
   if (!A) fail('Unknown adventure.');
   const adv = {
-    id, location: A.start, prev: null, scene: null, difficulty: DIFFICULTY[opts.difficulty] ? opts.difficulty : 'normal', stats: {}, bestiary: {},
+    id, location: A.start, prev: null, scene: null, manualDice: opts.manualDice !== false, pending: null, difficulty: DIFFICULTY[opts.difficulty] ? opts.difficulty : 'normal', stats: {}, bestiary: {},
     flags: {}, visited: { [A.start]: true },
     inventory: { ...(A.startItems || {}) }, gold: A.startGold || 0,
     party: {}, journal: [], log: [], combat: null, ended: null,
@@ -750,14 +750,17 @@ function attackRoll(room, c, m, bonus, dmgExpr, verb, fxStyle = 'slash', opts = 
   const advantage = opts.advantage || m.status.sleep || m.status.stun;
   const nat = advantage ? Math.max(d20(), d20()) : d20();
   const total = nat + bonus;
-  if (nat === 20 || (nat !== 1 && total >= M.ac)) {
+  const hit = nat === 20 || (nat !== 1 && total >= M.ac);
+  // When players roll their own dice, the animation shows each attack roll too.
+  const diceFx = manualDice(adv) ? { dice: { kind: 'attack', nat, bonus, total, dc: M.ac, ok: hit, label: `Attack: ${m.name}`, who: c.name } } : {};
+  if (hit) {
     const dmg = Math.max(1, dice(nat === 20 ? critDice(dmgExpr) : dmgExpr));
     if (nat === 20) bump(adv, 'crits');
-    log(adv, 'hit', `${c.name} ${verb} ${m.name}: ${total} vs AC ${M.ac}${advantage ? ' (advantage)' : ''}. Hit for ${dmg}${nat === 20 ? ' (critical!)' : ''}.`, { fx: { t: 'dmg', id: m.id, n: dmg, crit: nat === 20, by: idOf(adv, c), style: fxStyle } });
+    log(adv, 'hit', `${c.name} ${verb} ${m.name}: ${total} vs AC ${M.ac}${advantage ? ' (advantage)' : ''}. Hit for ${dmg}${nat === 20 ? ' (critical!)' : ''}.`, { fx: { t: 'dmg', id: m.id, n: dmg, crit: nat === 20, by: idOf(adv, c), style: fxStyle, ...diceFx } });
     hurtMonster(room, m, dmg, { crit: nat === 20, radiant: fxStyle === 'holy' });
     return true;
   }
-  log(adv, 'combat', `${c.name} ${verb} ${m.name}: ${total} vs AC ${M.ac}. Miss${nat === 1 ? ' (natural 1)' : ''}.`, { fx: { t: 'miss', id: m.id, by: idOf(adv, c) } });
+  log(adv, 'combat', `${c.name} ${verb} ${m.name}: ${total} vs AC ${M.ac}. Miss${nat === 1 ? ' (natural 1)' : ''}.`, { fx: { t: 'miss', id: m.id, by: idOf(adv, c), ...diceFx } });
   return false;
 }
 
@@ -830,6 +833,23 @@ function useConsumable(room, c, id, msg) {
   } else fail('You can\'t use that.');
 }
 
+// Players click to roll their own d20s unless the host turns it off (older saves count as on).
+const manualDice = (adv) => adv.manualDice !== false;
+const ROLL_ACTIONS = new Set(['attack', 'action-surge', 'shield-bash', 'poison-blade', 'fire-bolt']);
+
+// A skill check: roll the d20 and play out success or failure.
+function resolveCheck(room, c, choice) {
+  const adv = room.adventure;
+  const bonus = checkBonus(adv, c, choice.check);
+  const nat = d20();
+  const total = nat + bonus;
+  const ok = total >= choice.check.dc;
+  log(adv, 'roll', `${c.name} rolls ${checkLabel(choice.check)}: ${nat} ${signed(bonus)} = ${total} vs DC ${choice.check.dc}. ${ok ? 'Success!' : 'Failure.'}`, {
+    ok, fx: { t: 'check', nat, bonus, total, dc: choice.check.dc, ok, label: checkLabel(choice.check), who: c.name },
+  });
+  apply(room, c, ok ? choice.success : choice.failure);
+}
+
 function combatAction(room, meId, msg) {
   const adv = room.adventure;
   const combat = adv.combat;
@@ -841,6 +861,13 @@ function combatAction(room, meId, msg) {
   const action = heroActions(adv, c).find((a) => a.id === msg.action);
   if (!action) fail('You can\'t do that.');
   if (action.uses !== undefined && action.uses <= 0) fail('None left. Rest to recover.');
+  // Actions with an attack roll wait for the player to click the die.
+  const rolls = ROLL_ACTIONS.has(action.id) || (action.item && itemDef(content(adv), action.id.slice(5)).throw);
+  if (manualDice(adv) && rolls && !msg.rolled) {
+    const t = combat.monsters.find((m) => m.id === msg.target && m.hp > 0);
+    adv.pending = { kind: 'attack', owner: meId, label: action.label, target: t ? t.name : null, msg: { action: msg.action, target: msg.target || null, ally: msg.ally || null } };
+    return;
+  }
 
   const target = nextTarget(adv, combat.monsters.find((m) => m.id === msg.target));
   const ally = (msg.ally && adv.party[msg.ally]) || c;
@@ -1026,6 +1053,20 @@ function bestiaryView(adv) {
   }).sort((a, b) => a.xp - b.xp || a.name.localeCompare(b.name));
 }
 
+function rollPending(room, ownerId) {
+  const adv = room.adventure;
+  const p = adv.pending;
+  adv.pending = null;
+  const c = adv.party[ownerId];
+  if (!c) return;
+  if (p.kind === 'check') {
+    const choice = adv.scene === p.scene && content(adv).scenes[p.scene].choices[p.index];
+    if (choice && choice.check) resolveCheck(room, ensureHero(c), choice);
+  } else if (adv.combat) {
+    combatAction(room, ownerId, { ...p.msg, rolled: true });
+  }
+}
+
 // ---------- player messages ----------
 function handle(room, me, isHost, msg) {
   const adv = room.adventure;
@@ -1033,7 +1074,7 @@ function handle(room, me, isHost, msg) {
 
   if (msg.t === 'adv:reset') {
     if (!isHost) fail('Only the host can restart the adventure.');
-    const fresh = create(adv.id, { difficulty: adv.difficulty });
+    const fresh = create(adv.id, { difficulty: adv.difficulty, manualDice: adv.manualDice });
     for (const [id, c] of Object.entries(adv.party)) fresh.party[id] = makeHero(c.name, c.cls);
     room.adventure = fresh;
     room.initiative = { list: [], current: null, round: 1 };
@@ -1048,6 +1089,23 @@ function handle(room, me, isHost, msg) {
     log(adv, 'story', `The host sets the difficulty to ${DIFFICULTY[msg.level].name}.`);
     return;
   }
+
+  if (msg.t === 'adv:dice') {
+    if (!isHost) fail('Only the host can change how dice are rolled.');
+    adv.manualDice = !!msg.on;
+    if (!manualDice(adv) && adv.pending) rollPending(room, adv.pending.owner);
+    return;
+  }
+
+  // A die is waiting to be rolled: only rolling it (by its owner, or the host for them) can happen now.
+  if (adv.pending) {
+    if (msg.t === 'adv:roll') {
+      if (adv.pending.owner !== me.id && !isHost) fail(`It's ${(adv.party[adv.pending.owner] || {}).name || 'another player'}'s roll.`);
+      rollPending(room, adv.pending.owner);
+      return;
+    }
+    if (!['adv:equip', 'adv:unequip', 'adv:create'].includes(msg.t)) fail('Roll the die first!');
+  } else if (msg.t === 'adv:roll') fail('There is nothing to roll.');
 
   if (msg.t === 'adv:create') {
     if (adv.combat) fail('Wait until the fight is over.');
@@ -1169,15 +1227,10 @@ function handle(room, me, isHost, msg) {
         adv.gold -= choice.cost;
       }
       log(adv, 'choice', `${c.name}: ${choice.label}`);
-      if (choice.check) {
-        const bonus = checkBonus(adv, c, choice.check);
-        const nat = d20();
-        const total = nat + bonus;
-        const ok = total >= choice.check.dc;
-        log(adv, 'roll', `${c.name} rolls ${checkLabel(choice.check)}: ${nat} ${signed(bonus)} = ${total} vs DC ${choice.check.dc}. ${ok ? 'Success!' : 'Failure.'}`, {
-          ok, fx: { t: 'check', nat, bonus, total, dc: choice.check.dc, ok, label: checkLabel(choice.check), who: c.name },
-        });
-        apply(room, c, ok ? choice.success : choice.failure);
+      if (choice.check && manualDice(adv)) {
+        adv.pending = { kind: 'check', owner: me.id, scene: adv.scene, index: msg.index, label: checkLabel(choice.check), dc: choice.check.dc, bonus: checkBonus(adv, c, choice.check) };
+      } else if (choice.check) {
+        resolveCheck(room, c, choice);
       } else {
         apply(room, c, choice);
       }
@@ -1285,6 +1338,8 @@ function view(room, meId) {
     shop,
     coach, coachPrice: COACH_PRICE,
     difficulty: adv.difficulty || 'normal',
+    manualDice: manualDice(adv),
+    pending: adv.pending ? { kind: adv.pending.kind, owner: adv.pending.owner, ownerName: (adv.party[adv.pending.owner] || {}).name || '', label: adv.pending.label, target: adv.pending.target || null, dc: adv.pending.dc || null, bonus: adv.pending.bonus ?? null } : null,
     difficulties: Object.entries(DIFFICULTY).map(([id, d]) => ({ id, name: d.name, desc: d.desc })),
     stats: adv.stats || {},
     bestiary: bestiaryView(adv),

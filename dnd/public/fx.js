@@ -375,16 +375,19 @@
     die.classList.add('landed', fx.ok ? 'ok' : 'bad');
     if (fx.nat === 20) die.classList.add('nat20');
     if (fx.nat === 1) die.classList.add('nat1');
-    res.textContent = fx.nat !== undefined ? `${fx.nat} ${fx.bonus >= 0 ? '+' : '−'} ${Math.abs(fx.bonus)} = ${fx.total} vs DC ${fx.dc} · ${fx.ok ? 'Success!' : 'Failure'}` : `${fx.total} vs DC ${fx.dc} · ${fx.ok ? 'Success!' : 'Failure'}`;
+    const vs = fx.kind === 'attack' ? 'AC' : 'DC';
+    const verdict = fx.kind === 'attack' ? (fx.ok ? (fx.nat === 20 ? 'Critical hit!' : 'Hit!') : 'Miss') : (fx.ok ? 'Success!' : 'Failure');
+    res.textContent = fx.nat !== undefined ? `${fx.nat} ${fx.bonus >= 0 ? '+' : '−'} ${Math.abs(fx.bonus)} = ${fx.total} vs ${vs} ${fx.dc} · ${verdict}` : `${fx.total} vs ${vs} ${fx.dc} · ${verdict}`;
     res.className = `res ${fx.ok ? 'ok' : 'bad'}`;
     play('land', fx.ok);
-    await wait(1300);
+    await wait(fx.kind === 'attack' ? 750 : 1300);
     box.classList.add('out');
     setTimeout(() => box.remove(), 400);
   }
 
   // Plays one effect; resolves when the next one may start.
   async function run(fx, ctx) {
+    if (fx.dice) await diceRoll(fx.dice); // the player's own attack roll lands first, then the blow
     try { if (window.FX3D) window.FX3D.onFx(fx); } catch { /* 3D is optional */ }
     // Float numbers over the 3D model when the battle is in 3D, otherwise over its card/row.
     const at3d = (kind, id) => { try { return window.FX3D && window.FX3D.rect ? window.FX3D.rect(kind, id) : null; } catch { return null; } };

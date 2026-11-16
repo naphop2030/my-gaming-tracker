@@ -152,6 +152,7 @@
     renderParty(A);
     renderLog(A);
     renderNow(A);
+    renderDiceTray(A);
     renderModal(A);
     renderChatBadge();
     if (menuOpen) renderMenu(A);
@@ -459,13 +460,14 @@
     const base = JSON.stringify([me.id, A.location.id, A.scene && A.scene.id, !!A.combat, cur && cur.id, !!mine]);
     if (base !== baseKey) { baseKey = base; stack = []; }
     const key = JSON.stringify([base, stack, A.ended && A.ended.at, dismissedEnd, A.combat, A.scene, A.actions, A.exits, A.myActions,
-      targetId, A.party.map((p) => [p.id, p.hp, p.uses]), A.gold, A.inventory, TT.seatCount(), modalClosed]);
+      targetId, A.party.map((p) => [p.id, p.hp, p.uses]), A.gold, A.inventory, TT.seatCount(), modalClosed, A.pending]);
     if (key === nowKey) return;
     nowKey = key;
 
     let page;
     if (A.ended && dismissedEnd !== A.ended.at) page = endingCmd(A);
     else if (!mine) page = createCmd();
+    else if (A.pending) page = rollCmd(A);
     else if (A.combat) page = combatCmd(A, mine, cur);
     else if (A.scene) page = sceneCmd(A, mine);
     else page = exploreCmd(A, mine);
@@ -489,6 +491,42 @@
       const id = e.detail && e.detail.dataset.foe;
       if (id && id !== targetId) { targetId = id; renderEnemies(A); renderStage(A); }
     });
+  }
+
+  // A d20 waiting for its player to roll it.
+  function rollCmd(A) {
+    const p = A.pending;
+    const mineRoll = p.owner === TT.me.id;
+    const what = p.kind === 'check' ? `${p.label} check · need ${p.dc}${p.bonus !== null ? ` · your bonus ${signed(p.bonus)}` : ''}` : `${p.label}${p.target ? ` · ${p.target}` : ''}`;
+    if (mineRoll) return { title: 'Your roll!', text: what, items: [mi('Roll the d20', { icon: 'd20', sub: 'Click, or press Enter', onClick: rollDie })] };
+    const seat = TT.localSeatFor(p.owner);
+    const items = [];
+    if (seat && TT.seatCount() > 1) items.push(mi(`Switch to ${p.ownerName}`, { onClick: () => TT.switchSeat(seat) }));
+    if (TT.me.isDM) items.push(mi(`Roll for ${p.ownerName}`, { icon: 'd20', onClick: rollDie }));
+    return { title: `${p.ownerName}'s roll`, text: `Waiting for ${p.ownerName} to roll: ${what}`, items };
+  }
+  function rollDie() { TT.send({ t: 'adv:roll' }); }
+
+  // The big die over the scene, for whoever has to roll.
+  function renderDiceTray(A) {
+    let tray = $('#advDiceTray');
+    const p = A.pending;
+    const show = p && (p.owner === TT.me.id) && !menuOpen;
+    if (!show) { if (tray) tray.hidden = true; return; }
+    if (!tray) {
+      tray = el('button', 'dice-tray');
+      tray.id = 'advDiceTray';
+      tray.type = 'button';
+      tray.addEventListener('click', () => { tray.hidden = true; rollDie(); });
+      $('#advStageWrap').append(tray);
+    }
+    const sig = JSON.stringify(p);
+    if (tray.dataset.sig !== sig || tray.hidden) {
+      tray.dataset.sig = sig;
+      const what = p.kind === 'check' ? `${p.label} · need ${p.dc}` : `${p.label}${p.target ? `: ${p.target}` : ''}`;
+      tray.replaceChildren(icon('d20', 'dice-tray-die'), el('b', '', 'Click to roll!'), el('small', '', what));
+      tray.hidden = false;
+    }
   }
 
   function back() { stack.pop(); nowKey = ''; render(); }
@@ -1117,6 +1155,8 @@
     rows.push(choiceRow('Text size', [['1', 'Normal'], ['1.15', 'Large'], ['1.3', 'Larger']], store.get('dnd.textSize') || '1', (v) => { store.set('dnd.textSize', v); applyLook(); }, 'For the story, menus and item descriptions.'));
     const A = TT.S && TT.S.adventure;
     if (A && A.difficulties) {
+      const hostOnly = TT.me.isDM ? '' : ' Only the host can change this.';
+      rows.push(toggle('Roll your own dice', A.manualDice, (v) => { if (TT.me.isDM) TT.send({ t: 'adv:dice', on: v }); else TT.toast('Only the host can change this.', true); }, `Click the d20 yourself for skill checks and attacks. Off: the game rolls for you.${hostOnly}`));
       const host = TT.me.isDM;
       const cur = A.difficulties.find((d) => d.id === A.difficulty);
       rows.push(choiceRow('Difficulty', A.difficulties.map((d) => [d.id, d.name]), A.difficulty, (v) => TT.send({ t: 'adv:difficulty', level: v }), `${cur ? cur.desc : ''}${host ? '' : ' Only the host can change this.'}`, !host));

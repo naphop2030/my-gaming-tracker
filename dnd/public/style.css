@@ -879,3 +879,16 @@ select option { background: #141f63; }
   .story { max-height: 28vh; }
 }
 .adv .cls-menu .mi { font-size: calc(17px * var(--ts)); }
+
+/* ---------- click-to-roll die ---------- */
+.dice-tray { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 8; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 16px 26px 14px; border-radius: 16px; border: 2px solid var(--win-edge); background: linear-gradient(180deg, var(--win1), var(--win2)); color: #fff;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .55), 0 0 0 4px rgba(255, 211, 106, .25); cursor: pointer; font: inherit; animation: trayIn .3s ease-out both; }
+.dice-tray:hover, .dice-tray:focus-visible { box-shadow: 0 10px 30px rgba(0, 0, 0, .55), 0 0 0 4px rgba(255, 211, 106, .7); outline: none; }
+.dice-tray-die { width: 76px; height: 76px; color: var(--gold); filter: drop-shadow(0 4px 8px rgba(0, 0, 0, .5)); animation: dieWobble 1.4s ease-in-out infinite; }
+.dice-tray b { font-size: 18px; letter-spacing: .5px; }
+.dice-tray small { font-size: 13px; color: var(--muted); max-width: 260px; text-align: center; }
+@keyframes trayIn { from { opacity: 0; transform: translate(-50%, -40%) scale(.9); } to { opacity: 1; transform: translate(-50%, -50%); } }
+@keyframes dieWobble { 0%, 100% { transform: rotate(-8deg) translateY(0); } 50% { transform: rotate(8deg) translateY(-6px); } }
+@media (prefers-reduced-motion: reduce) { .dice-tray-die { animation: none; } }
+.calm .dice-tray-die { animation: none; }

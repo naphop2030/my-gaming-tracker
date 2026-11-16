@@ -4,7 +4,8 @@ const assert = require('node:assert');
 const adventure = require('../adventure');
 
 function newGame(heroes) {
-  const room = { adventure: adventure.create('ashen-vale'), initiative: { list: [], current: null, round: 1 }, sheets: {} };
+  // Most tests let the game roll the dice; the click-to-roll test turns it back on.
+  const room = { adventure: adventure.create('ashen-vale', { manualDice: false }), initiative: { list: [], current: null, round: 1 }, sheets: {} };
   for (const [id, name, cls] of heroes) adventure.handle(room, { id, name }, false, { t: 'adv:create', name, cls });
   return room;
 }
@@ -350,8 +351,8 @@ test('beyond the Vale: goblins, the Mere Hag, Frostmane and Warlord Grukk', () =
 });
 
 test('difficulty scales monsters and defeat; the host can change it', () => {
-  const story = adventure.create('ashen-vale', { difficulty: 'story' });
-  const hard = adventure.create('ashen-vale', { difficulty: 'hard' });
+  const story = adventure.create('ashen-vale', { difficulty: 'story', manualDice: false });
+  const hard = adventure.create('ashen-vale', { difficulty: 'hard', manualDice: false });
   assert.strictEqual(story.difficulty, 'story');
   assert.strictEqual(adventure.create('ashen-vale', { difficulty: 'nonsense' }).difficulty, 'normal');
   const hpFor = (adv) => {
@@ -423,4 +424,37 @@ test('the yeti and the Cinder Wyrm', () => {
   scene('brakka-again');
   choose(room, 'p1', 'yeti');
   assert.strictEqual(room.adventure.inventory['yeti-charm'], 1);
+});
+
+test('players click to roll their own checks and attacks', () => {
+  const room = newGame([['p1', 'Brakka', 'fighter'], ['p2', 'Wren', 'rogue']]);
+  room.adventure.manualDice = true;
+  // a skill check waits for its roller
+  act(room, 'p1', { t: 'adv:do', kind: 'scene', id: 'elder' });
+  choose(room, 'p1', 'What\'s it worth');
+  const pend = v(room, 'p2').pending;
+  assert.ok(pend && pend.kind === 'check' && pend.owner === 'p1' && pend.dc === 12);
+  assert.ok(!room.adventure.flags['q-bell'], 'nothing happens before the roll');
+  assert.throws(() => act(room, 'p1', { t: 'adv:travel', to: 'old-road' }), /Roll the die first/);
+  assert.throws(() => act(room, 'p2', { t: 'adv:roll' }), /Brakka's roll/);
+  act(room, 'p1', { t: 'adv:roll' });
+  assert.strictEqual(v(room, 'p1').pending, null);
+  assert.ok(room.adventure.flags['q-bell']);
+  assert.ok(room.adventure.log.some((e) => e.fx && e.fx.t === 'check'));
+  // an attack waits too, then shows its die
+  require('../adventures/ashen-vale').scenes.__t = { title: '', text: '', choices: [{ label: 'x', combat: ['zombie'] }] };
+  room.adventure.scene = '__t';
+  act(room, 'p1', { t: 'adv:choose', index: 0 });
+  for (let i = 0; i < 300 && room.adventure.combat; i++) {
+    const cur = room.initiative.list.find((e) => e.id === room.initiative.current);
+    act(room, cur.owner, { t: 'adv:act', action: 'attack' });
+    if (room.adventure.combat) {
+      assert.strictEqual(v(room, cur.owner).pending.kind, 'attack');
+      act(room, cur.owner, { t: 'adv:roll' });
+    }
+  }
+  assert.ok(room.adventure.log.some((e) => e.fx && e.fx.dice && e.fx.dice.kind === 'attack'), 'attack dice are shown');
+  // the host can turn it off
+  adventure.handle(room, { id: 'p1', name: 'p1' }, true, { t: 'adv:dice', on: false });
+  assert.strictEqual(v(room, 'p1').manualDice, false);
 });
